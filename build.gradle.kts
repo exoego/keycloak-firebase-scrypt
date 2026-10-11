@@ -30,7 +30,6 @@ java {
     withSourcesJar()
 }
 
-// Keycloak still runs on Java 17.
 tasks.withType<JavaCompile>().configureEach {
     options.release.set(17)
 }
@@ -80,7 +79,6 @@ testing {
     }
 }
 
-// CI runs the tests on each LTS release that Keycloak supports with -PtestJavaVersion.
 val testJavaVersion = providers.gradleProperty("testJavaVersion").orElse("21")
 tasks.withType<Test>().configureEach {
     javaLauncher.set(javaToolchains.launcherFor {
