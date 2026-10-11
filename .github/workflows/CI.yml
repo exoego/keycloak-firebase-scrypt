@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [ 21, 25 ]
+        java: [ 17, 21, 25 ]
     steps:
       - uses: actions/checkout@v7
 
@@ -25,6 +25,7 @@ jobs:
         uses: actions/setup-java@v6
         with:
           java-version: |
+            17.0.20+101
             25.0.4+101.0.LTS
             21.0.12+101.0.LTS
           distribution: 'temurin'
