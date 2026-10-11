@@ -75,6 +75,14 @@ testing {
     }
 }
 
+// The jar targets Java 21, but CI also runs the tests on newer LTS releases with -PtestJavaVersion.
+val testJavaVersion = providers.gradleProperty("testJavaVersion").orElse("21")
+tasks.withType<Test>().configureEach {
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion.set(testJavaVersion.map { JavaLanguageVersion.of(it) })
+    })
+}
+
 tasks.check {
     dependsOn(testing.suites.named("integrationTest"))
 }

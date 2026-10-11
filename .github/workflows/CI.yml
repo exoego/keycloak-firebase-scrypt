@@ -10,15 +10,23 @@ concurrency:
 
 jobs:
   test:
-    name: Test
+    name: Test (Java ${{ matrix.java }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [ 21, 25 ]
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up JDK 21
+      # Gradle compiles with JDK 21 and runs the tests with the JDK of the matrix.
+      # The last version becomes JAVA_HOME.
+      - name: Set up JDKs
         uses: actions/setup-java@v6
         with:
-          java-version: '21.0.12+101.0.LTS'
+          java-version: |
+            25.0.4+101.0.LTS
+            21.0.12+101.0.LTS
           distribution: 'temurin'
 
       - name: Setup Gradle
@@ -26,4 +34,4 @@ jobs:
 
       # The integration tests start Keycloak with Testcontainers, using the Docker of the runner.
       - name: Run Tests
-        run: ./gradlew check
+        run: ./gradlew check -PtestJavaVersion=${{ matrix.java }}
