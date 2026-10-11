@@ -1,0 +1,6 @@
+keycloak-firebase-scrypt
+Copyright 2026 TATSUNO Yasuhiro
+
+This product includes a Java port of the modified scrypt of Firebase Authentication
+and test vectors from https://github.com/firebase/scrypt.
+Its license is in licenses/firebase-scrypt.txt.
