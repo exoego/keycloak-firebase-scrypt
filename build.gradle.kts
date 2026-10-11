@@ -30,6 +30,10 @@ java {
     withSourcesJar()
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(17)
+}
+
 repositories {
     mavenCentral()
 }
@@ -73,6 +77,13 @@ testing {
             }
         }
     }
+}
+
+val testJavaVersion = providers.gradleProperty("testJavaVersion").orElse("21")
+tasks.withType<Test>().configureEach {
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion.set(testJavaVersion.map { JavaLanguageVersion.of(it) })
+    })
 }
 
 tasks.check {

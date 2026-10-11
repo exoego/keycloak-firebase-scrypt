@@ -12,7 +12,7 @@ Status: not released yet. The coordinates below are for the first release.
 
 | keycloak-firebase-scrypt | Keycloak | Java |
 |---|---|---|
-| 0.1.x | 26.8 | 21 |
+| 0.1.x | 26.8 | 17, 21, 25 |
 
 - The provider is off in FIPS mode, like the built-in argon2 provider. Both use the non-FIPS BouncyCastle API.
 - Keycloak marks the password hashing SPI as internal. It may change in any Keycloak release, and Keycloak logs a warning
