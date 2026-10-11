@@ -15,7 +15,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [ 17, 21, 25 ]
+        java:
+          - 17.0.20+101
+          - 21.0.12+101.0.LTS
+          - 25.0.4+101.0.LTS
     steps:
       - uses: actions/checkout@v7
 
@@ -25,14 +28,18 @@ jobs:
         uses: actions/setup-java@v6
         with:
           java-version: |
-            17.0.20+101
-            25.0.4+101.0.LTS
+            ${{ matrix.java }}
             21.0.12+101.0.LTS
           distribution: 'temurin'
+          # The pinned versions do not match the JDKs preinstalled on the runner, so cache the downloads.
+          # Gradle files are cached by setup-gradle, so do not set "cache: gradle" here.
+          cache-jdk: true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
       # The integration tests start Keycloak with Testcontainers, using the Docker of the runner.
       - name: Run Tests
-        run: ./gradlew check -PtestJavaVersion=${{ matrix.java }}
+        env:
+          MATRIX_JAVA: ${{ matrix.java }}
+        run: ./gradlew check -PtestJavaVersion="${MATRIX_JAVA%%.*}"
