@@ -2,5 +2,34 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "minimumReleaseAge": "7 days",
+  "automerge": true,
+  "packageRules": [
+    {
+      "description": "Pick a new Java major by hand",
+      "matchDatasources": [
+        "java-version"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Must match the libs in the Keycloak image",
+      "matchPackageNames": [
+        "org.bouncycastle:bcprov-jdk18on",
+        "org.jboss.logging:jboss-logging"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Check the README and the libs above by hand",
+      "matchPackageNames": [
+        "org.keycloak:**"
+      ],
+      "automerge": false
+    }
   ]
 }
