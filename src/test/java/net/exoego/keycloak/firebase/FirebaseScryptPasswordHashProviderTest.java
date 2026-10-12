@@ -24,6 +24,7 @@ import static net.exoego.keycloak.firebase.FirebaseScryptVectors.reference;
 import static net.exoego.keycloak.firebase.TestFixtures.imported;
 import static net.exoego.keycloak.firebase.TestFixtures.options;
 import static net.exoego.keycloak.firebase.TestFixtures.provider;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -132,6 +133,12 @@ class FirebaseScryptPasswordHashProviderTest {
         credential.setSecretData(secretData);
         ModelException e = assertThrows(ModelException.class, () -> provider.verify("hunter2", credential));
         assertTrue(e.getMessage().contains(FirebaseScryptPasswordHashProviderFactory.ID), e.getMessage());
+    }
+
+    // Keycloak tags its password metrics with this.
+    @Test
+    void reportsTheConfiguredCost() {
+        assertEquals("FirebaseScrypt[N=2^14,r=8,p=1]", provider.credentialHashingStrength(hunter2));
     }
 
     @Test
