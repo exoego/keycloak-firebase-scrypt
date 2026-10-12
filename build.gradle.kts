@@ -31,6 +31,7 @@ dependencies {
     compileOnly(libs.bundles.keycloak.provided)
     testImplementation(platform(libs.keycloak.parent))
     testImplementation(libs.bundles.keycloak.provided)
+    testImplementation(libs.bcprov)
 }
 
 tasks.withType<Jar>().configureEach {

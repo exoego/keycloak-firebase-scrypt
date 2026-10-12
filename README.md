@@ -15,7 +15,7 @@ Status: not released yet. The coordinates below are for the first release.
 |---|---|---|
 | 0.1.x | 26.8 | 17, 21, 25 |
 
-- The provider is off in FIPS mode, like the built-in argon2 provider. Both use the non-FIPS BouncyCastle API.
+- The provider is off in FIPS mode, like the built-in argon2 provider. scrypt is not a FIPS approved algorithm.
 - Keycloak marks the password hashing SPI as internal. It may change in any Keycloak release, and Keycloak logs a warning
   when it loads this provider. The integration tests run the provider in a real Keycloak to catch such changes.
 
@@ -113,6 +113,10 @@ Give each user a password credential like this:
 - Users who never log in keep the Firebase hash. Keep the provider until you have reset their passwords or removed them.
 - A password that contains a NUL character never matches. Otherwise `pw` followed by NUL would match `pw`,
   because HMAC pads short keys with zero bytes.
+- scrypt is implemented in this library after RFC 7914. HMAC-SHA256 and AES-CTR come from the JDK.
+- One verification needs `128 * rounds * 2^mem-cost` bytes of memory, 16 MiB with the Firebase defaults.
+  The provider keeps up to one such buffer per CPU and reuses it, so a login does not allocate it again.
+  The buffers are zeroed after each use.
 
 ## Build and test
 
@@ -125,6 +129,7 @@ They import users with the Firebase test vectors, log in, and check that the has
 
 The unit tests also use `src/testFixtures/resources/firebase-scrypt-vectors/reference.csv`, made with the
 [firebase/scrypt](https://github.com/firebase/scrypt) tool. It covers non-ASCII passwords, long passwords and other parameters.
+The scrypt core is checked against the test vectors of RFC 7914 and against BouncyCastle's scrypt for other parameters.
 
 ## Release
 
