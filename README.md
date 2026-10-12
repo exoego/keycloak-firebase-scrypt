@@ -94,6 +94,7 @@ Give each user a password credential like this:
 ```
 
 - `<passwordHash>` and `<salt>` are the values of the user in the Firebase export.
+  Keep `"salt":""` for a user without a salt. A missing `salt` field counts as a broken credential.
 - Use standard base64. Some Firebase APIs return base64url, with `-` and `_`. Convert those values first.
 - The provider ignores `hashIterations` and uses the `rounds` option.
 - If a credential is broken, the login fails and Keycloak logs a warning with `ModelException: firebase-scrypt: <reason>`.

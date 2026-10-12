@@ -84,8 +84,9 @@ public class FirebaseScryptPasswordHashProvider implements PasswordHashProvider 
         return hash;
     }
 
+    // An empty value is valid. Firebase allows an empty salt, and an empty hash fails the length check.
     private static byte[] decodeBase64(String value, String field) {
-        if (value == null || value.isEmpty()) {
+        if (value == null) {
             throw malformed("the credential has no " + field);
         }
         try {

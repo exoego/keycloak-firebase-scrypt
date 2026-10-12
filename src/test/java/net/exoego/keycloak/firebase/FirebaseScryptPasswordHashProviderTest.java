@@ -74,6 +74,14 @@ class FirebaseScryptPasswordHashProviderTest {
         assertFalse(provider(options(option, value)).verify("hunter2", hunter2));
     }
 
+    // The algorithm allows an empty salt, and the Firebase export writes "" for a user without one.
+    @Test
+    void acceptsEmptySalt() {
+        FirebaseScryptTest.Vector v = FirebaseScryptTest.referenceVectors().stream()
+                .filter(r -> r.salt().isEmpty()).findFirst().orElseThrow();
+        assertTrue(provider.verify(v.password(), imported(v.hash(), "")));
+    }
+
     @Test
     void acceptsSaltWithoutPadding() {
         assertTrue(provider.verify("hunter2", imported(HUNTER2_HASH, HUNTER2_SALT.replace("=", ""))));
@@ -100,7 +108,6 @@ class FirebaseScryptPasswordHashProviderTest {
                 Arguments.of("base64url salt", HUNTER2_HASH, BASE64URL_SALT),
                 Arguments.of("salt not base64", HUNTER2_HASH, HUNTER2_SALT + "!"),
                 Arguments.of("salt with space", HUNTER2_HASH, HUNTER2_SALT.substring(0, 4) + " " + HUNTER2_SALT.substring(4)),
-                Arguments.of("empty salt", HUNTER2_HASH, ""),
                 Arguments.of("no salt", HUNTER2_HASH, null));
     }
 

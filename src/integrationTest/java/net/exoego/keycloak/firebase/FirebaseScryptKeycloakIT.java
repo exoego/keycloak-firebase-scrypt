@@ -38,6 +38,8 @@ class FirebaseScryptKeycloakIT {
     private static final String SIGNER_KEY = "jxspr8Ki0RYycVU8zykbdLGjFQ3McFUH0uiiTvC8pVMXAn210wjLNmdZJzxUECKbm0QsEmYUSDzZvpjeJ9WmXA==";
     private static final String SALT = "42xEC+ixf3L2lw==";
     private static final String HUNTER2_HASH = "70k8Vg5B3/OrvJOiqusnasv0dLcBHoDAqJrJr7TRLBfMw4MitWx51YXJYFdGiyMbMeKtWtLf5HiBDcN0SUOm4A==";
+    // hunter2 with an empty salt, made with the firebase/scrypt tool.
+    private static final String EMPTY_SALT_HASH = "PIIeWiyHb2as+yzOFiCZB/lbDaJL80Lx7o5PsN+aT1qZOIKEIVuW/tih8Ka73fKcp5MKpTr3q5RznpeWRFgflA==";
     private static final String USER1_HASH = "lSrfV15cpx95/sZS2W9c9Kp6i/LVgQNDNC/qzrCnh1SAyZvqmZqAjTdn3aoItz+VHjoZilo78198JAdRuid5lQ==";
 
     private static final String REALM = "firebase";
@@ -112,6 +114,14 @@ class FirebaseScryptKeycloakIT {
     @Test
     void userImportedThroughRealmImportFileMigratesOnFirstLogin() throws Exception {
         assertMigratesOnFirstLogin(FILE_REALM, "file-user", "user1password");
+    }
+
+    @Test
+    void userWithEmptySaltMigratesOnFirstLogin() throws Exception {
+        try (Response response = admin.realm(REALM).users().create(firebaseUser("empty-salt-user", EMPTY_SALT_HASH, ""))) {
+            assertEquals(201, response.getStatus());
+        }
+        assertMigratesOnFirstLogin(REALM, "empty-salt-user", "hunter2");
     }
 
     // Fail closed with a clear warning, not a server error or a silent "wrong password".
