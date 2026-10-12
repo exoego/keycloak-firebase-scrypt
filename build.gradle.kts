@@ -65,7 +65,7 @@ testing {
             useJUnitJupiter(junitVersion)
             dependencies {
                 implementation("com.github.dasniko:testcontainers-keycloak:4.4.0")
-                runtimeOnly("org.slf4j:slf4j-simple:2.0.17")
+                runtimeOnly("org.slf4j:slf4j-simple:2.0.20")
             }
             targets.all {
                 testTask.configure {
