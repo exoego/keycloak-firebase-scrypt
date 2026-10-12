@@ -2,25 +2,11 @@ plugins {
     `java-library`
     `maven-publish`
     signing
-    id("io.github.gradle-nexus.publish-plugin") version "2.0.0"
+    alias(libs.plugins.nexus.publish)
 }
 
 group = "net.exoego"
 version = System.getenv("RELEASE_VERSION") ?: "0.1.0-SNAPSHOT"
-
-val keycloakVersion = "26.8.0"
-val junitVersion = "6.1.3"
-
-// Keycloak loads these from its own lib directory, so the provider jar must not bundle them.
-// The versions match /opt/keycloak/lib of quay.io/keycloak/keycloak:26.8.0.
-val keycloakProvided = listOf(
-    "org.keycloak:keycloak-core:$keycloakVersion",
-    "org.keycloak:keycloak-common:$keycloakVersion",
-    "org.keycloak:keycloak-server-spi:$keycloakVersion",
-    "org.keycloak:keycloak-server-spi-private:$keycloakVersion",
-    "org.bouncycastle:bcprov-jdk18on:1.86",
-    "org.jboss.logging:jboss-logging:3.6.3.Final",
-)
 
 java {
     toolchain {
@@ -39,10 +25,8 @@ repositories {
 }
 
 dependencies {
-    keycloakProvided.forEach {
-        compileOnly(it)
-        testImplementation(it)
-    }
+    compileOnly(libs.bundles.keycloak.provided)
+    testImplementation(libs.bundles.keycloak.provided)
 }
 
 tasks.withType<Jar>().configureEach {
@@ -57,20 +41,20 @@ tasks.withType<Jar>().configureEach {
 testing {
     suites {
         named<JvmTestSuite>("test") {
-            useJUnitJupiter(junitVersion)
+            useJUnitJupiter(libs.versions.junit)
         }
 
         // Runs the built jar in a real Keycloak container. Needs Docker.
         register<JvmTestSuite>("integrationTest") {
-            useJUnitJupiter(junitVersion)
+            useJUnitJupiter(libs.versions.junit)
             dependencies {
-                implementation("com.github.dasniko:testcontainers-keycloak:4.4.0")
-                runtimeOnly("org.slf4j:slf4j-simple:2.0.20")
+                implementation(libs.testcontainers.keycloak)
+                runtimeOnly(libs.slf4j.simple)
             }
             targets.all {
                 testTask.configure {
                     dependsOn(tasks.jar)
-                    systemProperty("keycloak.version", keycloakVersion)
+                    systemProperty("keycloak.version", libs.versions.keycloak.get())
                     systemProperty("provider.jar", tasks.jar.get().archiveFile.get().asFile.absolutePath)
                     shouldRunAfter(tasks.test)
                 }
