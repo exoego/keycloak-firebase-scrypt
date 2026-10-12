@@ -1,12 +1,7 @@
 package net.exoego.keycloak.firebase;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
-
-import org.keycloak.Config;
-import org.keycloak.credential.hash.PasswordHashProvider;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -18,10 +13,12 @@ import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFac
 import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory.ROUNDS;
 import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory.SALT_SEPARATOR;
 import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory.SIGNER_KEY;
-import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderTest.imported;
 import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_HASH;
 import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_SALT;
 import static net.exoego.keycloak.firebase.FirebaseScryptTest.KEY_01;
+import static net.exoego.keycloak.firebase.TestFixtures.imported;
+import static net.exoego.keycloak.firebase.TestFixtures.options;
+import static net.exoego.keycloak.firebase.TestFixtures.provider;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -29,32 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FirebaseScryptPasswordHashProviderFactoryTest {
 
-    static Map<String, String> options() {
-        Map<String, String> options = new HashMap<>();
-        options.put(SIGNER_KEY, KEY_01);
-        options.put(SALT_SEPARATOR, FirebaseScryptTest.SALT_SEPARATOR);
-        options.put(ROUNDS, "8");
-        options.put(MEM_COST, "14");
-        return options;
-    }
-
-    static Map<String, String> options(String option, String value) {
-        Map<String, String> options = options();
-        if (value == null) {
-            options.remove(option);
-        } else {
-            options.put(option, value);
-        }
-        return options;
-    }
-
-    static PasswordHashProvider provider(Map<String, String> options) {
-        FirebaseScryptPasswordHashProviderFactory factory = new FirebaseScryptPasswordHashProviderFactory();
-        factory.init(new MapScope(options));
-        return factory.create(null);
-    }
-
-    // Firebase Admin SDK accepts rounds 1 to 8 and mem_cost 1 to 14 for its scrypt.
     @ParameterizedTest(name = "{0}={1}")
     @CsvSource({"rounds,1", "rounds,8", "mem-cost,1", "mem-cost,14"})
     void acceptsCostWithinFirebaseLimits(String option, String value) {
@@ -64,11 +35,8 @@ class FirebaseScryptPasswordHashProviderFactoryTest {
     // Values often come from files or secret stores with a trailing newline.
     @Test
     void trimsSurroundingWhitespace() {
-        Map<String, String> options = new HashMap<>();
-        options.put(SIGNER_KEY, " " + KEY_01 + "\n");
-        options.put(SALT_SEPARATOR, "\t" + FirebaseScryptTest.SALT_SEPARATOR + " ");
-        options.put(ROUNDS, " 8\n");
-        options.put(MEM_COST, "14 ");
+        Map<String, String> options = options();
+        options.replaceAll((option, value) -> " \t" + value + "\n");
 
         assertTrue(provider(options).verify("hunter2", imported(HUNTER2_HASH, HUNTER2_SALT)));
     }
@@ -108,7 +76,6 @@ class FirebaseScryptPasswordHashProviderFactoryTest {
         assertFailsNaming(option, options(option, value));
     }
 
-    // A larger mem_cost can make every login allocate gigabytes. Firebase never uses one.
     @ParameterizedTest(name = "{0}={1}")
     @CsvSource({"rounds,0", "rounds,-1", "rounds,9", "mem-cost,0", "mem-cost,-1", "mem-cost,15", "mem-cost,30"})
     void rejectsCostOutsideFirebaseLimits(String option, String value) {
@@ -129,34 +96,5 @@ class FirebaseScryptPasswordHashProviderFactoryTest {
     private static void assertFailsNaming(String option, Map<String, String> options) {
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> provider(options));
         assertTrue(e.getMessage().contains(option), e.getMessage());
-    }
-
-    static class MapScope extends Config.AbstractScope {
-        private final Map<String, String> values;
-
-        MapScope(Map<String, String> values) {
-            this.values = values;
-        }
-
-        @Override
-        public String get(String key) {
-            return values.get(key);
-        }
-
-        @Override
-        public Config.Scope scope(String... scope) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        @Deprecated
-        public Set<String> getPropertyNames() {
-            return values.keySet();
-        }
-
-        @Override
-        public Config.Scope root() {
-            return this;
-        }
     }
 }

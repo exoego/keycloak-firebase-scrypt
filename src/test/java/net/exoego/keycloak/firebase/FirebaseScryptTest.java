@@ -34,6 +34,10 @@ class FirebaseScryptTest {
 
     record Vector(String source, String signerKey, String password, String hash, String salt,
                   String saltSeparator, int rounds, int memCost) {
+        Vector(String source, String signerKey, String password, String hash, String salt) {
+            this(source, signerKey, password, hash, salt, SALT_SEPARATOR, ROUNDS, MEM_COST);
+        }
+
         @Override
         public String toString() {
             return source + " [" + password + "] r=" + rounds + " mem_cost=" + memCost + " sep=" + saltSeparator;
@@ -42,18 +46,17 @@ class FirebaseScryptTest {
 
     static List<Vector> vectors() {
         List<Vector> vectors = new ArrayList<>();
-        vectors.add(new Vector("01-known-value.sh", KEY_01, "hunter2", HUNTER2_HASH, HUNTER2_SALT, SALT_SEPARATOR, ROUNDS, MEM_COST));
+        vectors.add(new Vector("01-known-value.sh", KEY_01, "hunter2", HUNTER2_HASH, HUNTER2_SALT));
         vectors.add(new Vector("README.md", KEY_01, "user1password",
-                "lSrfV15cpx95/sZS2W9c9Kp6i/LVgQNDNC/qzrCnh1SAyZvqmZqAjTdn3aoItz+VHjoZilo78198JAdRuid5lQ==", HUNTER2_SALT,
-                SALT_SEPARATOR, ROUNDS, MEM_COST));
-        for (String[] line : read("02-more-values-passwords.good")) {
-            vectors.add(new Vector("02-more-values-passwords.good", KEY_02, line[0], line[1], line[2], SALT_SEPARATOR, ROUNDS, MEM_COST));
-        }
-        for (String[] line : read("03-more-values-different-key-passwords.good")) {
-            vectors.add(new Vector("03-more-values-different-key-passwords.good", KEY_03, line[0], line[1], line[2], SALT_SEPARATOR, ROUNDS, MEM_COST));
-        }
+                "lSrfV15cpx95/sZS2W9c9Kp6i/LVgQNDNC/qzrCnh1SAyZvqmZqAjTdn3aoItz+VHjoZilo78198JAdRuid5lQ==", HUNTER2_SALT));
+        vectors.addAll(official("02-more-values-passwords.good", KEY_02));
+        vectors.addAll(official("03-more-values-different-key-passwords.good", KEY_03));
         vectors.addAll(referenceVectors());
         return vectors;
+    }
+
+    private static List<Vector> official(String file, String signerKey) {
+        return read(file).stream().map(line -> new Vector(file, signerKey, line[0], line[1], line[2])).toList();
     }
 
     static List<Vector> referenceVectors() {

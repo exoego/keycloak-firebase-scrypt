@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.stream.Stream;
 
-import org.keycloak.credential.CredentialModel;
 import org.keycloak.credential.hash.PasswordHashProvider;
 import org.keycloak.models.ModelException;
 import org.keycloak.models.credential.PasswordCredentialModel;
@@ -17,11 +16,12 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactoryTest.options;
-import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactoryTest.provider;
 import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_HASH;
 import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_SALT;
 import static net.exoego.keycloak.firebase.FirebaseScryptTest.referenceVector;
+import static net.exoego.keycloak.firebase.TestFixtures.imported;
+import static net.exoego.keycloak.firebase.TestFixtures.options;
+import static net.exoego.keycloak.firebase.TestFixtures.provider;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -29,23 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FirebaseScryptPasswordHashProviderTest {
 
-    // Same shape as the credentialData and secretData strings sent to the Admin API. A null leaves the field out.
-    static PasswordCredentialModel imported(String hash, String salt) {
-        StringBuilder secret = new StringBuilder("{");
-        if (hash != null) {
-            secret.append("\"value\":\"").append(hash).append("\",");
-        }
-        if (salt != null) {
-            secret.append("\"salt\":\"").append(salt).append("\",");
-        }
-        secret.append("\"algorithmData\":{}}");
-
-        CredentialModel model = new CredentialModel();
-        model.setType(PasswordCredentialModel.TYPE);
-        model.setCredentialData("{\"hashIterations\":8,\"algorithm\":\"firebase-scrypt\",\"algorithmData\":{}}");
-        model.setSecretData(secret.toString());
-        return PasswordCredentialModel.createFromCredentialModel(model);
-    }
+    private static final FirebaseScryptTest.Vector UTF8 = referenceVector("pässwörd");
 
     private final PasswordHashProvider provider = provider(options());
     private final PasswordCredentialModel hunter2 = imported(HUNTER2_HASH, HUNTER2_SALT);
@@ -68,17 +52,15 @@ class FirebaseScryptPasswordHashProviderTest {
 
     @Test
     void hashesPasswordAsUtf8() {
-        FirebaseScryptTest.Vector v = referenceVector("pässwörd");
-        assertTrue(provider.verify(v.password(), imported(v.hash(), v.salt())));
+        assertTrue(provider.verify(UTF8.password(), imported(UTF8.hash(), UTF8.salt())));
     }
 
     // Firebase hashes the bytes it receives. Keycloak must not accept another Unicode form of the same text.
     @Test
     void doesNotNormalizeUnicode() {
-        FirebaseScryptTest.Vector v = referenceVector("pässwörd");
-        String decomposed = Normalizer.normalize(v.password(), Normalizer.Form.NFD);
-        assertNotEquals(v.password(), decomposed);
-        assertFalse(provider.verify(decomposed, imported(v.hash(), v.salt())));
+        String decomposed = Normalizer.normalize(UTF8.password(), Normalizer.Form.NFD);
+        assertNotEquals(UTF8.password(), decomposed);
+        assertFalse(provider.verify(decomposed, imported(UTF8.hash(), UTF8.salt())));
     }
 
     @ParameterizedTest(name = "{0}={1}")
@@ -94,7 +76,7 @@ class FirebaseScryptPasswordHashProviderTest {
 
     @Test
     void rejectsHashOfAnotherSalt() {
-        assertFalse(provider.verify("hunter2", imported(HUNTER2_HASH, referenceVector("pässwörd").salt())));
+        assertFalse(provider.verify("hunter2", imported(HUNTER2_HASH, UTF8.salt())));
     }
 
     static Stream<Arguments> malformedCredentials() {

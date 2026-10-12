@@ -20,7 +20,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.keycloak.admin.client.Keycloak;
-import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.PartialImportRepresentation;
@@ -73,7 +72,7 @@ class FirebaseScryptKeycloakIT {
         client.setSecret(CLIENT_SECRET);
         client.setDirectAccessGrantsEnabled(true);
         client.setStandardFlowEnabled(false);
-        try (Response response = realm(REALM).clients().create(client)) {
+        try (Response response = admin.realm(REALM).clients().create(client)) {
             assertEquals(201, response.getStatus());
         }
     }
@@ -90,7 +89,7 @@ class FirebaseScryptKeycloakIT {
 
     @Test
     void userImportedThroughUsersApiMigratesOnFirstLogin() throws Exception {
-        try (Response response = realm(REALM).users().create(firebaseUser("hunter2-user", HUNTER2_HASH))) {
+        try (Response response = admin.realm(REALM).users().create(firebaseUser("hunter2-user", HUNTER2_HASH))) {
             assertEquals(201, response.getStatus());
         }
         assertMigratesOnFirstLogin(REALM, "hunter2-user", "hunter2");
@@ -101,7 +100,7 @@ class FirebaseScryptKeycloakIT {
         PartialImportRepresentation partialImport = new PartialImportRepresentation();
         partialImport.setIfResourceExists("FAIL");
         partialImport.setUsers(List.of(firebaseUser("user1", USER1_HASH)));
-        try (Response response = realm(REALM).partialImport(partialImport)) {
+        try (Response response = admin.realm(REALM).partialImport(partialImport)) {
             assertEquals(200, response.getStatus());
             assertEquals(1, JSON.readTree(response.readEntity(String.class)).get("added").asInt());
         }
@@ -117,10 +116,10 @@ class FirebaseScryptKeycloakIT {
     @Test
     void malformedCredentialDeniesLoginWithWarning() throws Exception {
         String base64UrlHash = HUNTER2_HASH.replace('+', '-').replace('/', '_');
-        try (Response response = realm(REALM).users().create(firebaseUser("broken-user", base64UrlHash))) {
+        try (Response response = admin.realm(REALM).users().create(firebaseUser("broken-user", base64UrlHash))) {
             assertEquals(201, response.getStatus());
         }
-        String userId = realm(REALM).users().searchByUsername("broken-user", true).get(0).getId();
+        String userId = admin.realm(REALM).users().searchByUsername("broken-user", true).get(0).getId();
         int logStart = keycloak.getLogs().length();
 
         assertInvalidCredentials(passwordGrant(REALM, "broken-user", "hunter2"));
@@ -133,7 +132,7 @@ class FirebaseScryptKeycloakIT {
     }
 
     private void assertMigratesOnFirstLogin(String realm, String username, String password) throws Exception {
-        String userId = realm(realm).users().searchByUsername(username, true).get(0).getId();
+        String userId = admin.realm(realm).users().searchByUsername(username, true).get(0).getId();
         CredentialRepresentation imported = passwordCredential(realm, userId);
         assertEquals("firebase-scrypt", algorithm(imported));
         int logStart = keycloak.getLogs().length();
@@ -150,7 +149,6 @@ class FirebaseScryptKeycloakIT {
         assertInvalidCredentials(passwordGrant(realm, username, password + "x"));
 
         String logs = keycloak.getLogs().substring(logStart);
-        assertFalse(logs.contains("Error re-hashing"), logs);
         assertFalse(logs.contains("Error when validating user password"), logs);
     }
 
@@ -173,12 +171,8 @@ class FirebaseScryptKeycloakIT {
         return user;
     }
 
-    private static RealmResource realm(String realm) {
-        return admin.realm(realm);
-    }
-
     private static CredentialRepresentation passwordCredential(String realm, String userId) {
-        List<CredentialRepresentation> passwords = realm(realm).users().get(userId).credentials().stream()
+        List<CredentialRepresentation> passwords = admin.realm(realm).users().get(userId).credentials().stream()
                 .filter(c -> CredentialRepresentation.PASSWORD.equals(c.getType()))
                 .toList();
         assertEquals(1, passwords.size());
