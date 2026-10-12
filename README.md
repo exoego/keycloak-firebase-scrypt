@@ -74,16 +74,34 @@ KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__ROUNDS=8
 KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__MEM_COST=14
 ```
 
-or as options, such as `--spi-password-hashing--firebase-scrypt--signer-key=...`.
+or as options, such as `--spi-password-hashing--firebase-scrypt--signer-key=...`,
+or in `/opt/keycloak/conf/keycloak.conf`:
+
+```properties
+spi-password-hashing--firebase-scrypt--signer-key=...
+spi-password-hashing--firebase-scrypt--salt-separator=...
+spi-password-hashing--firebase-scrypt--rounds=8
+spi-password-hashing--firebase-scrypt--mem-cost=14
+```
 
 Keycloak 26.2 and earlier do not know the double separator. Use a single one there,
 such as `KC_SPI_PASSWORD_HASHING_FIREBASE_SCRYPT_SIGNER_KEY` or `--spi-password-hashing-firebase-scrypt-signer-key`.
 
 - The signer key is a secret of the Firebase project. Keep it in a secret store.
   Prefer the environment variable, because other users of the host can see command line options.
+  If you use `keycloak.conf`, let only the Keycloak user read it.
 - Keycloak does not start if an option is missing or invalid. Without them, no imported user could log in.
   `rounds` must be 1 to 8 and `mem-cost` 1 to 14, the same limits as the Firebase Admin SDK.
 - One Keycloak takes the parameters of one Firebase project.
+
+When Keycloak starts with the provider and valid options, it logs this line:
+
+```
+INFO  [net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory] (main) firebase-scrypt enabled: rounds=8, mem-cost=14, signer key 64 bytes
+```
+
+Check that `rounds`, `mem-cost` and the length of the signer key match your Firebase project.
+Keycloak also logs the warning `KC-SERVICES0047` for this provider, because the password hashing SPI is internal.
 
 ## Import users
 
