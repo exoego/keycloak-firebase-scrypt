@@ -20,12 +20,12 @@ jobs:
           - 21
           - 25
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Gradle compiles with JDK 21 and runs the tests with the JDK of the matrix.
       # The last version becomes JAVA_HOME.
       - name: Set up JDKs
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           java-version: |
             ${{ matrix.java }}
@@ -34,14 +34,14 @@ jobs:
           # Gradle files are cached by setup-gradle, so do not set "cache: gradle" here.
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       # The integration tests start Keycloak with Testcontainers, using the Docker of the runner.
       - name: Run Tests
         run: ./gradlew check jacocoTestReport -PtestJavaVersion=${{ matrix.java }}
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: build/reports/jacoco/test/jacocoTestReport.xml
@@ -61,7 +61,7 @@ jobs:
         run: exit 1
 
       - name: Send Codecov notifications
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           run_command: send-notifications
