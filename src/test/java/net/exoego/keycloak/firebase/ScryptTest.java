@@ -5,13 +5,16 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.sun.management.ThreadMXBean;
@@ -137,17 +140,40 @@ class ScryptTest {
         assertTrue(allocated < 1 << 20, "allocated " + allocated + " bytes, the work area alone is 16 MiB");
     }
 
+    // Every thread has its own password, so a shared or zeroed buffer changes a result. Twice as many threads as
+    // CPUs, so the pool runs dry and runs full, and several rounds, so a buffer passes from thread to thread.
     @Test
     void isThreadSafe() throws Exception {
-        byte[] p = "hunter2".getBytes(StandardCharsets.UTF_8);
+        int threads = Runtime.getRuntime().availableProcessors() * 2;
+        int rounds = 4;
         byte[] salt = "salt".getBytes(StandardCharsets.UTF_8);
-        byte[] expected = Scrypt.derive(p, salt, 12, 8, 32);
-        ExecutorService pool = Executors.newFixedThreadPool(8);
+        List<byte[]> passwords = IntStream.range(0, threads)
+                .mapToObj(i -> ("password" + i).getBytes(StandardCharsets.UTF_8))
+                .toList();
+        List<byte[]> expected = passwords.stream().map(p -> Scrypt.derive(p, salt, 12, 8, 32)).toList();
+
+        CyclicBarrier start = new CyclicBarrier(threads);
+        List<Callable<byte[][]>> tasks = new ArrayList<>();
+        for (int t = 0; t < threads; t++) {
+            int first = t;
+            tasks.add(() -> {
+                start.await();
+                byte[][] results = new byte[rounds][];
+                for (int round = 0; round < rounds; round++) {
+                    results[round] = Scrypt.derive(passwords.get((first + round) % threads), salt, 12, 8, 32);
+                }
+                return results;
+            });
+        }
+
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
         try {
-            Callable<byte[]> derive = () -> Scrypt.derive(p, salt, 12, 8, 32);
-            List<Future<byte[]>> results = pool.invokeAll(Stream.generate(() -> derive).limit(32).toList());
-            for (Future<byte[]> result : results) {
-                assertArrayEquals(expected, result.get());
+            List<Future<byte[][]>> futures = pool.invokeAll(tasks);
+            for (int t = 0; t < threads; t++) {
+                byte[][] results = futures.get(t).get();
+                for (int round = 0; round < rounds; round++) {
+                    assertArrayEquals(expected.get((t + round) % threads), results[round], "thread " + t + " round " + round);
+                }
             }
         } finally {
             pool.shutdown();
