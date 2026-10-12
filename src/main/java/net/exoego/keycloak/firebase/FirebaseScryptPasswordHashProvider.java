@@ -1,5 +1,6 @@
 package net.exoego.keycloak.firebase;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
@@ -8,7 +9,9 @@ import org.keycloak.credential.hash.PasswordHashProvider;
 import org.keycloak.models.ModelException;
 import org.keycloak.models.PasswordPolicy;
 import org.keycloak.models.credential.PasswordCredentialModel;
-import org.keycloak.models.credential.dto.PasswordSecretData;
+import org.keycloak.util.JsonSerialization;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Verify-only provider for password hashes exported from Firebase Auth.
@@ -53,32 +56,47 @@ public class FirebaseScryptPasswordHashProvider implements PasswordHashProvider 
         if (rawPassword == null || rawPassword.indexOf('\0') >= 0) {
             return false;
         }
-        PasswordSecretData secret = credential.getPasswordSecretData();
-        byte[] salt = secret == null ? null : secret.getSalt();
-        if (salt == null || salt.length == 0) {
-            throw malformed("the credential has no salt");
-        }
-        byte[] expected = decodeHash(secret.getValue());
+        byte[] salt = decodeSalt(credential.getSecretData());
+        byte[] expected = decodeHash(credential.getPasswordSecretData().getValue());
         byte[] actual = FirebaseScrypt.hash(rawPassword.getBytes(StandardCharsets.UTF_8), salt, saltSeparator,
                 signerKey, rounds, memCost);
         return MessageDigest.isEqual(actual, expected);
     }
 
-    private byte[] decodeHash(String value) {
-        if (value == null || value.isEmpty()) {
-            throw malformed("the credential has no hash");
+    // Keycloak decodes the salt with the MIME decoder, which drops unknown characters such as "-" and "_".
+    // So read the raw value and decode it strictly, as for the hash.
+    private static byte[] decodeSalt(String secretData) {
+        if (secretData == null) {
+            throw malformed("the credential has no secret data");
         }
-        byte[] hash;
+        JsonNode salt;
         try {
-            hash = Base64.getDecoder().decode(value);
-        } catch (IllegalArgumentException e) {
-            throw malformed("the hash is not standard base64. Convert base64url values before import");
+            salt = JsonSerialization.mapper.readTree(secretData).get("salt");
+        } catch (IOException e) {
+            throw malformed("the secret data is not JSON");
         }
+        return decodeBase64(salt == null ? null : salt.textValue(), "salt");
+    }
+
+    private byte[] decodeHash(String value) {
+        byte[] hash = decodeBase64(value, "hash");
         // The Firebase hash is the signer key encrypted with AES-CTR, so both have the same length.
         if (hash.length != signerKey.length) {
             throw malformed("the hash has " + hash.length + " bytes, but the signer key has " + signerKey.length);
         }
         return hash;
+    }
+
+    // An empty value is valid. Firebase allows an empty salt, and an empty hash fails the length check.
+    private static byte[] decodeBase64(String value, String field) {
+        if (value == null) {
+            throw malformed("the credential has no " + field);
+        }
+        try {
+            return Base64.getDecoder().decode(value);
+        } catch (IllegalArgumentException e) {
+            throw malformed("the " + field + " is not standard base64. Convert base64url values before import");
+        }
     }
 
     @Override

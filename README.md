@@ -94,11 +94,11 @@ Give each user a password credential like this:
 ```
 
 - `<passwordHash>` and `<salt>` are the values of the user in the Firebase export.
-- Use standard base64 with padding. Some Firebase APIs return base64url, with `-` and `_`. Convert those values first.
-  Keycloak decodes the salt leniently and drops unknown characters, so a base64url salt fails without a clear error.
+  Keep `"salt":""` for a user without a salt. A missing `salt` field counts as a broken credential.
+- Use standard base64. Some Firebase APIs return base64url, with `-` and `_`. Convert those values first.
 - The provider ignores `hashIterations` and uses the `rounds` option.
 - If a credential is broken, the login fails and Keycloak logs a warning with `ModelException: firebase-scrypt: <reason>`.
-  For example, the hash is missing, is not standard base64, or has another length than the signer key.
+  For example, the hash or the salt is missing or is not standard base64, or the hash has another length than the signer key.
 - The same credential works in `POST /admin/realms/{realm}/users`, in `POST /admin/realms/{realm}/partialImport`,
   and in a realm import file.
 

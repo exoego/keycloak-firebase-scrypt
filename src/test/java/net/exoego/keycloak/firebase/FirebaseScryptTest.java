@@ -74,7 +74,7 @@ class FirebaseScryptTest {
 
     @Test
     void loadsAllVectors() {
-        assertEquals(2 + 13 + 13 + 8, vectors().size());
+        assertEquals(2 + 13 + 13 + 9, vectors().size());
     }
 
     @ParameterizedTest(name = "{0}")

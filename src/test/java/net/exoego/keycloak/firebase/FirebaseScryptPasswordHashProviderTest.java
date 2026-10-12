@@ -14,6 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_HASH;
@@ -74,10 +75,26 @@ class FirebaseScryptPasswordHashProviderTest {
         assertFalse(provider(options(option, value)).verify("hunter2", hunter2));
     }
 
+    // The algorithm allows an empty salt, and the Firebase export writes "" for a user without one.
+    @Test
+    void acceptsEmptySalt() {
+        FirebaseScryptTest.Vector v = FirebaseScryptTest.referenceVectors().stream()
+                .filter(r -> r.salt().isEmpty()).findFirst().orElseThrow();
+        assertTrue(provider.verify(v.password(), imported(v.hash(), "")));
+    }
+
+    @Test
+    void acceptsSaltWithoutPadding() {
+        assertTrue(provider.verify("hunter2", imported(HUNTER2_HASH, HUNTER2_SALT.replace("=", ""))));
+    }
+
     @Test
     void rejectsHashOfAnotherSalt() {
         assertFalse(provider.verify("hunter2", imported(HUNTER2_HASH, UTF8.salt())));
     }
+
+    // Keycloak decodes the salt with the MIME decoder. It drops the "-" and "_" here, and gives other bytes without an error.
+    static final String BASE64URL_SALT = "-----_8AAQIDBA";
 
     static Stream<Arguments> malformedCredentials() {
         byte[] hash = Base64.getDecoder().decode(HUNTER2_HASH);
@@ -89,7 +106,9 @@ class FirebaseScryptPasswordHashProviderTest {
                 Arguments.of("extended hash", encoder.encodeToString(Arrays.copyOf(hash, hash.length + 1)), HUNTER2_SALT),
                 Arguments.of("empty hash", "", HUNTER2_SALT),
                 Arguments.of("no hash", null, HUNTER2_SALT),
-                Arguments.of("empty salt", HUNTER2_HASH, ""),
+                Arguments.of("base64url salt", HUNTER2_HASH, BASE64URL_SALT),
+                Arguments.of("salt not base64", HUNTER2_HASH, HUNTER2_SALT + "!"),
+                Arguments.of("salt with space", HUNTER2_HASH, HUNTER2_SALT.substring(0, 4) + " " + HUNTER2_SALT.substring(4)),
                 Arguments.of("no salt", HUNTER2_HASH, null));
     }
 
@@ -105,6 +124,17 @@ class FirebaseScryptPasswordHashProviderTest {
                 assertFalse(e.getMessage().contains(secret), e.getMessage());
             }
         }
+    }
+
+    // Keycloak parses the secret data before verify, so only a caller that changes it afterwards gets here.
+    @ParameterizedTest(name = "[{0}]")
+    @NullSource
+    @ValueSource(strings = {"not json", ""})
+    void failsLoudlyOnUnreadableSecretData(String secretData) {
+        PasswordCredentialModel credential = imported(HUNTER2_HASH, HUNTER2_SALT);
+        credential.setSecretData(secretData);
+        ModelException e = assertThrows(ModelException.class, () -> provider.verify("hunter2", credential));
+        assertTrue(e.getMessage().contains(FirebaseScryptPasswordHashProviderFactory.ID), e.getMessage());
     }
 
     @Test
