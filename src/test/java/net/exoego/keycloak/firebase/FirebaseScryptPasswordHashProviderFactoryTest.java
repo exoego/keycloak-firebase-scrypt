@@ -3,6 +3,9 @@ package net.exoego.keycloak.firebase;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import org.keycloak.common.Profile;
+import org.keycloak.credential.hash.PasswordHashProvider;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -20,6 +23,7 @@ import static net.exoego.keycloak.firebase.TestFixtures.imported;
 import static net.exoego.keycloak.firebase.TestFixtures.options;
 import static net.exoego.keycloak.firebase.TestFixtures.provider;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -80,6 +84,42 @@ class FirebaseScryptPasswordHashProviderFactoryTest {
     @CsvSource({"rounds,0", "rounds,-1", "rounds,9", "mem-cost,0", "mem-cost,-1", "mem-cost,15", "mem-cost,30"})
     void rejectsCostOutsideFirebaseLimits(String option, String value) {
         assertFailsNaming(option, options(option, value));
+    }
+
+    // The same order as Keycloak calls them.
+    @Test
+    void worksThroughTheFactoryLifecycle() {
+        FirebaseScryptPasswordHashProviderFactory factory = new FirebaseScryptPasswordHashProviderFactory();
+        factory.init(new TestFixtures.MapScope(options()));
+        factory.postInit(null);
+        PasswordHashProvider provider = factory.create(null);
+        assertTrue(provider.verify("hunter2", imported(HUNTER2_HASH, HUNTER2_SALT)));
+        provider.close();
+        factory.close();
+    }
+
+    // Imported credentials name the algorithm by this ID.
+    @Test
+    void idMatchesTheAlgorithmOfImportedCredentials() {
+        assertEquals(imported(HUNTER2_HASH, HUNTER2_SALT).getPasswordCredentialData().getAlgorithm(),
+                new FirebaseScryptPasswordHashProviderFactory().getId());
+    }
+
+    // Keycloak picks the highest positive order as the default algorithm for new passwords.
+    @Test
+    void neverBecomesTheDefaultAlgorithm() {
+        assertTrue(new FirebaseScryptPasswordHashProviderFactory().order() < 0);
+    }
+
+    @ParameterizedTest(name = "FIPS={0}")
+    @CsvSource({"false,true", "true,false"})
+    void isOffInFipsMode(boolean fips, boolean supported) {
+        Profile.init(Profile.ProfileName.DEFAULT, Map.of(Profile.Feature.FIPS, fips));
+        try {
+            assertEquals(supported, new FirebaseScryptPasswordHashProviderFactory().isSupported(new TestFixtures.MapScope(options())));
+        } finally {
+            Profile.reset();
+        }
     }
 
     @Test

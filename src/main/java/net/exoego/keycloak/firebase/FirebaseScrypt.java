@@ -18,6 +18,7 @@ final class FirebaseScrypt {
     private static final int DERIVED_KEY_LENGTH = 64;
     private static final int AES_KEY_LENGTH = 32;
     private static final int PARALLELISM = 1;
+    private static final String AES_CTR = "AES/CTR/NoPadding";
 
     private FirebaseScrypt() {
     }
@@ -31,13 +32,20 @@ final class FirebaseScrypt {
         try {
             // Firebase does not store the scrypt output. It stores the signer key encrypted with
             // AES-256-CTR, keyed by the first 32 bytes of the output. The counter block starts at zero.
-            Cipher aes = Cipher.getInstance("AES/CTR/NoPadding");
-            aes.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(derived, 0, AES_KEY_LENGTH, "AES"), new IvParameterSpec(new byte[16]));
-            return aes.doFinal(signerKey);
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("AES-CTR is not available", e);
+            return encrypt(AES_CTR, derived, signerKey);
         } finally {
             Arrays.fill(derived, (byte) 0);
+        }
+    }
+
+    // Java platforms do not have to support AES/CTR, so a JVM may lack it.
+    static byte[] encrypt(String transformation, byte[] key, byte[] data) {
+        try {
+            Cipher cipher = Cipher.getInstance(transformation);
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, 0, AES_KEY_LENGTH, "AES"), new IvParameterSpec(new byte[16]));
+            return cipher.doFinal(data);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException(transformation + " is not available", e);
         }
     }
 }

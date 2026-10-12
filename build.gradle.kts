@@ -85,6 +85,23 @@ tasks.jacocoTestReport {
     }
 }
 
+tasks.jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            for (counter in listOf("INSTRUCTION", "BRANCH")) {
+                limit {
+                    this.counter = counter
+                    minimum = "1.0".toBigDecimal()
+                }
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
+}
+
 nexusPublishing {
     repositories {
         sonatype {
