@@ -38,4 +38,31 @@ jobs:
 
       # The integration tests start Keycloak with Testcontainers, using the Docker of the runner.
       - name: Run Tests
-        run: ./gradlew check -PtestJavaVersion=${{ matrix.java }}
+        run: ./gradlew check jacocoTestReport -PtestJavaVersion=${{ matrix.java }}
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: build/reports/jacoco/test/jacocoTestReport.xml
+          disable_search: true
+          name: java-${{ matrix.java }}
+          fail_ci_if_error: true
+
+  # A skipped required job counts as passed, so fail instead of skipping.
+  result:
+    name: CI result
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check matrix result
+        if: needs.test.result != 'success'
+        run: exit 1
+
+      - name: Send Codecov notifications
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          run_command: send-notifications
+          fail_ci_if_error: true
