@@ -1,0 +1,10 @@
+# Generated with firebase/scrypt at commit e9ec1a9, with the signer key of tests/01-known-value.sh.
+# Each line is password,hash,salt,salt separator,rounds,mem cost.
+pässwörd,AbZLgXB3W5NAy3bXcudMhSM7ogDlkd5xj7ZPwO6EVY26RfyLWsp4aLbDiHuQUGBt12Qh9OdQdmg+29FnOU9fhQ==,lJVCc3SXpQibgg==,Bw==,8,14
+パスワード,xbCczRC/ddwQJd3HHdyjggjt8cJXocFgqs7/SkTYR2A9Fz6AZmcgKdSop5nsN2lfEsGvG0Q6anR/ac5Xp2atow==,lJVCc3SXpQibgg==,Bw==,8,14
+🔑 key,gm96FNji66lgVtrrt6vGDTAWVgNzoCsxxxKeddLbOCV9WiFMR/1SBaWRYgQYMbsNj/KPpRuQ3izSha2DgTPzKw==,lJVCc3SXpQibgg==,Bw==,8,14
+long password over one hmac block long password over one hmac block long password over one hmac block,L1QvzSVWBSJSd7LPmWPBKylkoYCgTAWtlsUE1kYzIT2p1tZ7/b4ebYfbxkhyTXzdlJ3Kr94Ob/kg9h2owVTmnA==,lJVCc3SXpQibgg==,Bw==,8,14
+hunter2,QOByv6zinoj8SIRidYzpCT6XDxE3OJCYvzsDgmqLAedGiUkbwiVD3ogmdzC5hAprnGUezJuKkSuVbLp+drkqFg==,lJVCc3SXpQibgg==,Bw==,1,14
+hunter2,qUHSsktl8q8kLs/ean5J4vTN2B/wvJGzofox1/XYwpXRaBRa2EsYB0FhlyDnRBn+caXT5vSfHXaTXKOrsUQhdA==,lJVCc3SXpQibgg==,Bw==,8,1
+hunter2,d2rQ2HVjmQ98YtLb6JALCJI6QY2Z5uUW6pHDMrTNNudJJlskmtUb2CuPij8xxeGdjZ1mG8AgCMyPePGXk7tFKg==,lJVCc3SXpQibgg==,AAECAwQFBgc=,8,14
+hunter2,qyiO9Mrf78oq0pk2WU8ga7/CEe4utrSy4lPHMkGmfG83q4Uuw5eQnahiVbWQUJbGSVTIkZkb+qD7u1NAP4fZ8g==,lJVCc3SXpQibgg==,Bw==,4,10

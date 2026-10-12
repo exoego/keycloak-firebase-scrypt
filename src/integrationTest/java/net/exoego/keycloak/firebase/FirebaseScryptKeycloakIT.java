@@ -20,7 +20,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.keycloak.admin.client.Keycloak;
-import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.PartialImportRepresentation;
@@ -29,6 +28,7 @@ import org.keycloak.representations.idm.UserRepresentation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FirebaseScryptKeycloakIT {
 
@@ -39,6 +39,7 @@ class FirebaseScryptKeycloakIT {
     private static final String USER1_HASH = "lSrfV15cpx95/sZS2W9c9Kp6i/LVgQNDNC/qzrCnh1SAyZvqmZqAjTdn3aoItz+VHjoZilo78198JAdRuid5lQ==";
 
     private static final String REALM = "firebase";
+    private static final String FILE_REALM = "firebase-file";
     private static final String CLIENT_ID = "test-cli";
     private static final String CLIENT_SECRET = "test-secret";
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -52,6 +53,7 @@ class FirebaseScryptKeycloakIT {
     static void startKeycloak() {
         keycloak = new KeycloakContainer("quay.io/keycloak/keycloak:" + System.getProperty("keycloak.version"))
                 .withProviderLibsFrom(List.of(new File(System.getProperty("provider.jar"))))
+                .withRealmImportFile("/firebase-file-realm.json")
                 .withEnv("KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__SIGNER_KEY", SIGNER_KEY)
                 .withEnv("KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__SALT_SEPARATOR", "Bw==")
                 .withEnv("KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__ROUNDS", "8")
@@ -70,7 +72,7 @@ class FirebaseScryptKeycloakIT {
         client.setSecret(CLIENT_SECRET);
         client.setDirectAccessGrantsEnabled(true);
         client.setStandardFlowEnabled(false);
-        try (Response response = realm().clients().create(client)) {
+        try (Response response = admin.realm(REALM).clients().create(client)) {
             assertEquals(201, response.getStatus());
         }
     }
@@ -87,10 +89,10 @@ class FirebaseScryptKeycloakIT {
 
     @Test
     void userImportedThroughUsersApiMigratesOnFirstLogin() throws Exception {
-        try (Response response = realm().users().create(firebaseUser("hunter2-user", HUNTER2_HASH))) {
+        try (Response response = admin.realm(REALM).users().create(firebaseUser("hunter2-user", HUNTER2_HASH))) {
             assertEquals(201, response.getStatus());
         }
-        assertMigratesOnFirstLogin("hunter2-user", "hunter2");
+        assertMigratesOnFirstLogin(REALM, "hunter2-user", "hunter2");
     }
 
     @Test
@@ -98,31 +100,55 @@ class FirebaseScryptKeycloakIT {
         PartialImportRepresentation partialImport = new PartialImportRepresentation();
         partialImport.setIfResourceExists("FAIL");
         partialImport.setUsers(List.of(firebaseUser("user1", USER1_HASH)));
-        try (Response response = realm().partialImport(partialImport)) {
+        try (Response response = admin.realm(REALM).partialImport(partialImport)) {
             assertEquals(200, response.getStatus());
             assertEquals(1, JSON.readTree(response.readEntity(String.class)).get("added").asInt());
         }
-        assertMigratesOnFirstLogin("user1", "user1password");
+        assertMigratesOnFirstLogin(REALM, "user1", "user1password");
     }
 
-    private void assertMigratesOnFirstLogin(String username, String password) throws Exception {
-        String userId = realm().users().searchByUsername(username, true).get(0).getId();
-        CredentialRepresentation imported = passwordCredential(userId);
+    @Test
+    void userImportedThroughRealmImportFileMigratesOnFirstLogin() throws Exception {
+        assertMigratesOnFirstLogin(FILE_REALM, "file-user", "user1password");
+    }
+
+    // Fail closed with a clear warning, not a server error or a silent "wrong password".
+    @Test
+    void malformedCredentialDeniesLoginWithWarning() throws Exception {
+        String base64UrlHash = HUNTER2_HASH.replace('+', '-').replace('/', '_');
+        try (Response response = admin.realm(REALM).users().create(firebaseUser("broken-user", base64UrlHash))) {
+            assertEquals(201, response.getStatus());
+        }
+        String userId = admin.realm(REALM).users().searchByUsername("broken-user", true).get(0).getId();
+        int logStart = keycloak.getLogs().length();
+
+        assertInvalidCredentials(passwordGrant(REALM, "broken-user", "hunter2"));
+
+        assertEquals("firebase-scrypt", algorithm(passwordCredential(REALM, userId)));
+        String logs = keycloak.getLogs().substring(logStart);
+        assertTrue(logs.contains("Error when validating user password"), logs);
+        assertTrue(logs.contains("org.keycloak.models.ModelException: firebase-scrypt"), logs);
+        assertFalse(logs.contains(base64UrlHash), logs);
+    }
+
+    private void assertMigratesOnFirstLogin(String realm, String username, String password) throws Exception {
+        String userId = admin.realm(realm).users().searchByUsername(username, true).get(0).getId();
+        CredentialRepresentation imported = passwordCredential(realm, userId);
         assertEquals("firebase-scrypt", algorithm(imported));
+        int logStart = keycloak.getLogs().length();
 
-        assertInvalidCredentials(passwordGrant(username, password + "x"));
-        assertEquals("firebase-scrypt", algorithm(passwordCredential(userId)));
+        assertInvalidCredentials(passwordGrant(realm, username, password + "x"));
+        assertEquals("firebase-scrypt", algorithm(passwordCredential(realm, userId)));
 
-        assertEquals(200, passwordGrant(username, password).statusCode());
-        CredentialRepresentation rehashed = awaitAlgorithm(userId, "argon2");
+        assertEquals(200, passwordGrant(realm, username, password).statusCode());
+        CredentialRepresentation rehashed = awaitAlgorithm(realm, userId, "argon2");
         assertEquals(imported.getId(), rehashed.getId());
         assertEquals(imported.getUserLabel(), rehashed.getUserLabel());
 
-        assertEquals(200, passwordGrant(username, password).statusCode());
-        assertInvalidCredentials(passwordGrant(username, password + "x"));
+        assertEquals(200, passwordGrant(realm, username, password).statusCode());
+        assertInvalidCredentials(passwordGrant(realm, username, password + "x"));
 
-        String logs = keycloak.getLogs();
-        assertFalse(logs.contains("Error re-hashing"), logs);
+        String logs = keycloak.getLogs().substring(logStart);
         assertFalse(logs.contains("Error when validating user password"), logs);
     }
 
@@ -145,12 +171,8 @@ class FirebaseScryptKeycloakIT {
         return user;
     }
 
-    private static RealmResource realm() {
-        return admin.realm(REALM);
-    }
-
-    private static CredentialRepresentation passwordCredential(String userId) {
-        List<CredentialRepresentation> passwords = realm().users().get(userId).credentials().stream()
+    private static CredentialRepresentation passwordCredential(String realm, String userId) {
+        List<CredentialRepresentation> passwords = admin.realm(realm).users().get(userId).credentials().stream()
                 .filter(c -> CredentialRepresentation.PASSWORD.equals(c.getType()))
                 .toList();
         assertEquals(1, passwords.size());
@@ -162,18 +184,18 @@ class FirebaseScryptKeycloakIT {
     }
 
     // Keycloak rehashes after the login transaction commits, so the new hash shows up a little later.
-    private static CredentialRepresentation awaitAlgorithm(String userId, String expected) throws Exception {
+    private static CredentialRepresentation awaitAlgorithm(String realm, String userId, String expected) throws Exception {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(15));
-        CredentialRepresentation credential = passwordCredential(userId);
+        CredentialRepresentation credential = passwordCredential(realm, userId);
         while (!expected.equals(algorithm(credential)) && Instant.now().isBefore(deadline)) {
             Thread.sleep(500);
-            credential = passwordCredential(userId);
+            credential = passwordCredential(realm, userId);
         }
         assertEquals(expected, algorithm(credential));
         return credential;
     }
 
-    private HttpResponse<String> passwordGrant(String username, String password) throws Exception {
+    private HttpResponse<String> passwordGrant(String realm, String username, String password) throws Exception {
         Map<String, String> form = Map.of(
                 "grant_type", "password",
                 "client_id", CLIENT_ID,
@@ -185,7 +207,7 @@ class FirebaseScryptKeycloakIT {
                 .map(e -> e.getKey() + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
                 .collect(Collectors.joining("&"));
         HttpRequest request = HttpRequest.newBuilder(
-                        URI.create(keycloak.getAuthServerUrl() + "/realms/" + REALM + "/protocol/openid-connect/token"))
+                        URI.create(keycloak.getAuthServerUrl() + "/realms/" + realm + "/protocol/openid-connect/token"))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
