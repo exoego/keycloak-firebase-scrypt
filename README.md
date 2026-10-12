@@ -8,8 +8,6 @@ so users keep their Firebase passwords after the move.
 On the first successful login, Keycloak hashes the password again with the realm's algorithm.
 The default is argon2 since Keycloak 25 and pbkdf2-sha512 before.
 
-Status: not released yet. The coordinates below are for the first release.
-
 ## Compatibility
 
 | keycloak-firebase-scrypt | Keycloak | Java |
