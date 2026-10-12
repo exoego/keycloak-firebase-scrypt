@@ -1,45 +1,27 @@
-# keycloak-firebase-scrypt
+# Verify-only Firebase scrypt provider for Keycloak
+[![Maven Central](https://img.shields.io/maven-central/v/net.exoego/keycloak-firebase-scrypt)](https://central.sonatype.com/artifact/net.exoego/keycloak-firebase-scrypt)
 [![codecov](https://codecov.io/gh/exoego/keycloak-firebase-scrypt/graph/badge.svg?token=a0EhBN7vkq)](https://codecov.io/gh/exoego/keycloak-firebase-scrypt)
 
 A Keycloak password hash provider for users moved from Firebase Authentication.
 
 Firebase hashes passwords with its own variant of scrypt. With this provider, Keycloak can verify those hashes,
 so users keep their Firebase passwords after the move.
-On the first successful login, Keycloak hashes the password again with the realm's algorithm.
-The default is argon2 since Keycloak 25 and pbkdf2-sha512 before.
+On the first successful login, Keycloak replaces the hash with one in the realm's algorithm.
 
 ## Compatibility
 
-| keycloak-firebase-scrypt | Keycloak | Java |
-|---|---|---|
-| 1.0.x | 24.0.5, 25.0.6, 26.8 | 17, 21, 25 |
+| keycloak-firebase-scrypt | Keycloak |
+|---|---|
+| 1.0.x | 24.0.5, 25.0.6, 26.8 |
 
 - The provider is off in FIPS mode, like the built-in argon2 provider. scrypt is not a FIPS approved algorithm.
-- Keycloak marks the password hashing SPI as internal. It may change in any Keycloak release, and Keycloak logs a warning
-  when it builds with this provider. The integration tests run the provider in a real Keycloak to catch such changes.
+- Keycloak marks the password hashing SPI as internal, so `kc.sh build` logs the warning `KC-SERVICES0047`.
+  The SPI may change in any Keycloak release. The integration tests run the provider in a real Keycloak to catch such changes.
 
 ## Install
 
-The artifact is `net.exoego:keycloak-firebase-scrypt` on Maven Central.
-
-Maven:
-
-```xml
-<dependency>
-  <groupId>net.exoego</groupId>
-  <artifactId>keycloak-firebase-scrypt</artifactId>
-  <version>1.0.0</version>
-</dependency>
-```
-
-Gradle:
-
-```kotlin
-implementation("net.exoego:keycloak-firebase-scrypt:1.0.0")
-```
-
-The jar has no dependencies of its own. Put it in `/opt/keycloak/providers/` and run `kc.sh build`.
-For example, in a container image:
+Put the jar from [Maven Central](https://central.sonatype.com/artifact/net.exoego/keycloak-firebase-scrypt) in `/opt/keycloak/providers/` and run `kc.sh build`.
+The jar has no dependencies of its own. For example, in a container image:
 
 ```dockerfile
 FROM quay.io/keycloak/keycloak:26.8.0 AS builder
@@ -72,18 +54,9 @@ KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__ROUNDS=8
 KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__MEM_COST=14
 ```
 
-or as options, such as `--spi-password-hashing--firebase-scrypt--signer-key=...`,
-or in `/opt/keycloak/conf/keycloak.conf`:
-
-```properties
-spi-password-hashing--firebase-scrypt--signer-key=...
-spi-password-hashing--firebase-scrypt--salt-separator=...
-spi-password-hashing--firebase-scrypt--rounds=8
-spi-password-hashing--firebase-scrypt--mem-cost=14
-```
-
+The same options work on the command line and in `keycloak.conf`, as `spi-password-hashing--firebase-scrypt--signer-key` and so on.
 Keycloak 26.2 and earlier do not know the double separator. Use a single one there,
-such as `KC_SPI_PASSWORD_HASHING_FIREBASE_SCRYPT_SIGNER_KEY` or `--spi-password-hashing-firebase-scrypt-signer-key`.
+such as `KC_SPI_PASSWORD_HASHING_FIREBASE_SCRYPT_SIGNER_KEY`.
 
 - The signer key is a secret of the Firebase project. Keep it in a secret store.
   Prefer the environment variable, because other users of the host can see command line options.
@@ -92,16 +65,13 @@ such as `KC_SPI_PASSWORD_HASHING_FIREBASE_SCRYPT_SIGNER_KEY` or `--spi-password-
   `rounds` must be 1 to 8 and `mem-cost` 1 to 14, the same limits as the Firebase Admin SDK.
 - One Keycloak takes the parameters of one Firebase project.
 
-When Keycloak starts with the provider and valid options, it logs this line:
+When Keycloak starts with valid options, it logs this line:
 
 ```
 INFO  [net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory] (main) firebase-scrypt enabled: rounds=8, mem-cost=14, signer key 64 bytes
 ```
 
 Check that `rounds`, `mem-cost` and the length of the signer key match your Firebase project.
-`kc.sh build` logs the warning `KC-SERVICES0047` for this provider, because the password hashing SPI is internal.
-With the Dockerfile above, the warning is in the output of `docker build`, not in the startup log.
-A start that runs the build first, such as `start-dev`, logs it too.
 
 ## Import users
 
@@ -128,18 +98,11 @@ Give each user a password credential like this:
 
 ## How it works
 
-- The provider only verifies hashes. It cannot create them.
-  Do not choose `firebase-scrypt` as the hashing algorithm of a realm password policy.
-  The provider never becomes the default algorithm.
-- After a successful login, Keycloak sees that the stored algorithm differs from the realm's algorithm and replaces the hash.
-  The credential keeps its ID and label.
+- The provider only verifies hashes. Do not choose `firebase-scrypt` as the algorithm of a realm password policy.
+- The credential keeps its ID and label after Keycloak replaces the hash.
 - Users who never log in keep the Firebase hash. Keep the provider until you have reset their passwords or removed them.
-- A password that contains a NUL character never matches. Otherwise `pw` followed by NUL would match `pw`,
-  because HMAC pads short keys with zero bytes.
-- scrypt is implemented in this library after RFC 7914. HMAC-SHA256 and AES-CTR come from the JDK.
 - One verification needs `128 * rounds * 2^mem-cost` bytes of memory, 16 MiB with the Firebase defaults.
-  The provider keeps up to one such buffer per CPU and reuses it, so a login does not allocate it again.
-  The buffers are zeroed after each use.
+  The provider keeps up to one such buffer per CPU and reuses it.
 
 ## Build and test
 
@@ -148,18 +111,12 @@ Give each user a password credential like this:
 ```
 
 `check` also runs the integration tests. They start Keycloak with Testcontainers, so they need Docker.
-They import users with the Firebase test vectors, log in, and check that the hash changes to the default algorithm.
-They use the Keycloak version of `gradle/libs.versions.toml`. Pass `-PtestKeycloakVersion=25.0.6` for another one.
-
-The unit tests also use `src/testFixtures/resources/firebase-scrypt-vectors/reference.csv`, made with the
-[firebase/scrypt](https://github.com/firebase/scrypt) tool. It covers non-ASCII passwords, long passwords and other parameters.
-The scrypt core is checked against the test vectors of RFC 7914 and against BouncyCastle's scrypt for other parameters.
+Pass `-PtestKeycloakVersion=25.0.6` to test another Keycloak version.
 
 ## Release
 
-Publish a GitHub release with a tag like `v1.0.0`. The `publish.yml` workflow then publishes to Maven Central.
-It needs the secrets `SONATYPE_USERNAME`, `SONATYPE_PASSWORD`, `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE`
-in the `release` environment, which only `v*` tags can use.
+Publish a GitHub release with a tag like `v1.0.0`. The `publish.yml` workflow then publishes to Maven Central
+with the secrets of the `release` environment.
 
 ## License
 
