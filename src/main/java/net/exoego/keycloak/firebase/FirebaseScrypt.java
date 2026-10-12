@@ -1,13 +1,13 @@
 package net.exoego.keycloak.firebase;
 
+import java.security.GeneralSecurityException;
 import java.util.Arrays;
 
-import org.bouncycastle.crypto.StreamCipher;
-import org.bouncycastle.crypto.engines.AESEngine;
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
 import org.bouncycastle.crypto.generators.SCrypt;
-import org.bouncycastle.crypto.modes.SICBlockCipher;
-import org.bouncycastle.crypto.params.KeyParameter;
-import org.bouncycastle.crypto.params.ParametersWithIV;
 
 /**
  * Firebase Auth's modified scrypt, ported from scryptenc_buf_saltlen() in
@@ -18,6 +18,7 @@ final class FirebaseScrypt {
     private static final int DERIVED_KEY_LENGTH = 64;
     private static final int AES_KEY_LENGTH = 32;
     private static final int PARALLELISM = 1;
+    private static final String AES_CTR = "AES/CTR/NoPadding";
 
     private FirebaseScrypt() {
     }
@@ -31,13 +32,20 @@ final class FirebaseScrypt {
         try {
             // Firebase does not store the scrypt output. It stores the signer key encrypted with
             // AES-256-CTR, keyed by the first 32 bytes of the output. The counter block starts at zero.
-            StreamCipher aes = SICBlockCipher.newInstance(AESEngine.newInstance());
-            aes.init(true, new ParametersWithIV(new KeyParameter(derived, 0, AES_KEY_LENGTH), new byte[16]));
-            byte[] hash = new byte[signerKey.length];
-            aes.processBytes(signerKey, 0, signerKey.length, hash, 0);
-            return hash;
+            return encrypt(AES_CTR, derived, signerKey);
         } finally {
             Arrays.fill(derived, (byte) 0);
+        }
+    }
+
+    // Java platforms do not have to support AES/CTR, so a JVM may lack it.
+    static byte[] encrypt(String transformation, byte[] key, byte[] data) {
+        try {
+            Cipher cipher = Cipher.getInstance(transformation);
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, 0, AES_KEY_LENGTH, "AES"), new IvParameterSpec(new byte[16]));
+            return cipher.doFinal(data);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException(transformation + " is not available", e);
         }
     }
 }
