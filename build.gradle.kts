@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "net.exoego"
-version = System.getenv("RELEASE_VERSION") ?: "0.1.0-SNAPSHOT"
+version = System.getenv("RELEASE_VERSION") ?: "1.0.0-SNAPSHOT"
 
 java {
     toolchain {
