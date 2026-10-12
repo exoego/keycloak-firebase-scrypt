@@ -20,7 +20,8 @@ On the first successful login, Keycloak replaces the hash with one in the realm'
 
 ## Install
 
-Put the jar from [Maven Central](https://central.sonatype.com/artifact/net.exoego/keycloak-firebase-scrypt) in `/opt/keycloak/providers/` and run `kc.sh build`.
+Download the jar of the latest version from [Maven Central](https://repo1.maven.org/maven2/net/exoego/keycloak-firebase-scrypt/),
+put it in `/opt/keycloak/providers/` and run `kc.sh build`.
 The jar has no dependencies of its own. For example, in a container image:
 
 ```dockerfile
