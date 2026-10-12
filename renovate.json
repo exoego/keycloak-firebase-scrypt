@@ -5,6 +5,9 @@
   ],
   "minimumReleaseAge": "7 days",
   "automerge": true,
+  "labels": [
+    "dependencies"
+  ],
   "packageRules": [
     {
       "description": "Pick a new Java major by hand",
