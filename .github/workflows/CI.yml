@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   test:
-    name: Test (Java ${{ matrix.java }})
+    name: Test (Java ${{ matrix.java }}${{ matrix.keycloak && format(', Keycloak {0}', matrix.keycloak) || '' }})
     timeout-minutes: 30
     runs-on: ubuntu-latest
     permissions:
@@ -25,6 +25,15 @@ jobs:
           - 17
           - 21
           - 25
+        # Empty means the Keycloak version of the catalog. It keeps the rows below from merging into the Java 21 row.
+        keycloak:
+          - ''
+        # The last release of each older major. The provider runs in the JDK of the Keycloak image, so one test JDK is enough.
+        include:
+          - java: 21
+            keycloak: 24.0.5
+          - java: 21
+            keycloak: 25.0.6
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -46,9 +55,13 @@ jobs:
 
       # The integration tests start Keycloak with Testcontainers, using the Docker of the runner.
       - name: Run Tests
-        run: ./gradlew check jacocoTestReport -PtestJavaVersion=${{ matrix.java }}
+        env:
+          KEYCLOAK_VERSION: ${{ matrix.keycloak }}
+        run: ./gradlew check jacocoTestReport -PtestJavaVersion=${{ matrix.java }} -PtestKeycloakVersion="$KEYCLOAK_VERSION"
 
+      # The coverage comes from the unit tests, which do not depend on the Keycloak version.
       - name: Upload coverage
+        if: matrix.keycloak == ''
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

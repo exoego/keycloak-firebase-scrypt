@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dasniko.testcontainers.keycloak.KeycloakContainer;
 import jakarta.ws.rs.core.Response;
@@ -29,6 +30,7 @@ import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.PartialImportRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.Transferable;
 
 import static net.exoego.keycloak.firebase.FirebaseScryptVectors.BASE64URL_SALT;
@@ -42,6 +44,7 @@ import static net.exoego.keycloak.firebase.FirebaseScryptVectors.USER1_HASH;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class FirebaseScryptKeycloakIT {
 
@@ -49,7 +52,12 @@ class FirebaseScryptKeycloakIT {
     private static final String FILE_REALM = "firebase-file";
     private static final String CLIENT_ID = "test-cli";
     private static final String CLIENT_SECRET = "test-secret";
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final String VERSION = System.getProperty("keycloak.version");
+    private static final int MAJOR_VERSION = Integer.parseInt(VERSION.split("\\.")[0]);
+    // Keycloak 25 made argon2 the default hashing algorithm.
+    private static final String DEFAULT_ALGORITHM = MAJOR_VERSION < 25 ? "pbkdf2-sha512" : "argon2";
+    // An older Keycloak rejects the fields that newer versions added to the realm import file, even when they are null.
+    private static final ObjectMapper JSON = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
     private static KeycloakContainer keycloak;
     private static Keycloak admin;
@@ -61,17 +69,34 @@ class FirebaseScryptKeycloakIT {
         RealmRepresentation fileRealm = realm(FILE_REALM);
         fileRealm.setUsers(List.of(firebaseUser("file-user", USER1_HASH)));
 
-        keycloak = new KeycloakContainer("quay.io/keycloak/keycloak:" + System.getProperty("keycloak.version"))
+        String env = optionEnvPrefix();
+        keycloak = new KeycloakContainer("quay.io/keycloak/keycloak:" + VERSION)
                 .withProviderLibsFrom(List.of(new File(System.getProperty("provider.jar"))))
                 .withCopyToContainer(Transferable.of(JSON.writeValueAsString(fileRealm)),
                         "/opt/keycloak/data/import/" + FILE_REALM + ".json")
-                .withEnv("KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__SIGNER_KEY", KEY_01)
-                .withEnv("KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__SALT_SEPARATOR", SALT_SEPARATOR)
-                .withEnv("KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__ROUNDS", String.valueOf(ROUNDS))
-                .withEnv("KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__MEM_COST", String.valueOf(MEM_COST));
+                .withEnv(env + "SIGNER_KEY", KEY_01)
+                .withEnv(env + "SALT_SEPARATOR", SALT_SEPARATOR)
+                .withEnv(env + "ROUNDS", String.valueOf(ROUNDS))
+                .withEnv(env + "MEM_COST", String.valueOf(MEM_COST));
+        // Testcontainers sets only the bootstrap admin variables of Keycloak 26.
+        if (MAJOR_VERSION < 26) {
+            keycloak.withEnv("KEYCLOAK_ADMIN", keycloak.getAdminUsername())
+                    .withEnv("KEYCLOAK_ADMIN_PASSWORD", keycloak.getAdminPassword());
+        }
+        // Keycloak 25 moved the health endpoints to the management port 9000, where Testcontainers waits.
+        if (MAJOR_VERSION < 25) {
+            keycloak.waitingFor(Wait.forHttp("/health/ready").forPort(8080));
+        }
         keycloak.start();
         admin = keycloak.getKeycloakAdminClient();
         admin.realms().create(realm(REALM));
+    }
+
+    // Keycloak 26.3 added the "--" separator, and the README shows it. Older versions read only the single "_" form.
+    private static String optionEnvPrefix() {
+        int minor = Integer.parseInt(VERSION.split("\\.")[1]);
+        boolean doubleSeparator = MAJOR_VERSION > 26 || (MAJOR_VERSION == 26 && minor >= 3);
+        return doubleSeparator ? "KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__" : "KC_SPI_PASSWORD_HASHING_FIREBASE_SCRYPT_";
     }
 
     private static RealmRepresentation realm(String name) {
@@ -133,11 +158,24 @@ class FirebaseScryptKeycloakIT {
     }
 
     // Fail closed with a clear warning, not a server error or a silent "wrong password".
-    // Keycloak itself decodes the base64url salt to other bytes without an error.
+    // Keycloak 26 itself decodes the base64url salt to other bytes without an error.
     static Stream<Arguments> malformedCredentials() {
-        return Stream.of(
-                Arguments.of("base64url-hash", HUNTER2_HASH.replace('+', '-').replace('/', '_'), HUNTER2_SALT),
-                Arguments.of("base64url-salt", HUNTER2_HASH, BASE64URL_SALT));
+        Stream<Arguments> hash = Stream.of(
+                Arguments.of("base64url-hash", HUNTER2_HASH.replace('+', '-').replace('/', '_'), HUNTER2_SALT));
+        return MAJOR_VERSION < 26 ? hash : Stream.concat(hash, Stream.of(
+                Arguments.of("base64url-salt", HUNTER2_HASH, BASE64URL_SALT)));
+    }
+
+    // Keycloak before 26 decodes the salt strictly, so it refuses to store the credential at all.
+    @Test
+    void base64urlSaltIsRefusedOnImportBeforeKeycloak26() {
+        assumeTrue(MAJOR_VERSION < 26);
+        int logStart = keycloak.getLogs().length();
+        try (Response response = admin.realm(REALM).users().create(firebaseUser("old-base64url-salt", HUNTER2_HASH, BASE64URL_SALT))) {
+            assertEquals(500, response.getStatus());
+        }
+        assertTrue(admin.realm(REALM).users().searchByUsername("old-base64url-salt", true).isEmpty());
+        assertFalse(keycloak.getLogs().substring(logStart).contains(BASE64URL_SALT));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -169,7 +207,7 @@ class FirebaseScryptKeycloakIT {
         assertEquals("firebase-scrypt", algorithm(passwordCredential(realm, userId)));
 
         assertEquals(200, passwordGrant(realm, username, password).statusCode());
-        CredentialRepresentation rehashed = awaitAlgorithm(realm, userId, "argon2");
+        CredentialRepresentation rehashed = awaitAlgorithm(realm, userId, DEFAULT_ALGORITHM);
         assertEquals(imported.getId(), rehashed.getId());
         assertEquals(imported.getUserLabel(), rehashed.getUserLabel());
 
@@ -246,9 +284,9 @@ class FirebaseScryptKeycloakIT {
         return http.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    // A wrong password on the direct grant gives 400 invalid_grant, not 401.
+    // A wrong password on the direct grant gives 400 invalid_grant since Keycloak 26, and 401 before.
     private static void assertInvalidCredentials(HttpResponse<String> response) throws Exception {
-        assertEquals(400, response.statusCode(), response.body());
+        assertEquals(MAJOR_VERSION < 26 ? 401 : 400, response.statusCode(), response.body());
         var error = JSON.readTree(response.body());
         assertEquals("invalid_grant", error.get("error").asText());
         assertEquals("Invalid user credentials", error.get("error_description").asText());
