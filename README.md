@@ -140,7 +140,8 @@ The scrypt core is checked against the test vectors of RFC 7914 and against Boun
 ## Release
 
 Publish a GitHub release with a tag like `v1.0.0`. The `publish.yml` workflow then publishes to Maven Central.
-It needs the secrets `SONATYPE_USERNAME`, `SONATYPE_PASSWORD`, `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE`.
+It needs the secrets `SONATYPE_USERNAME`, `SONATYPE_PASSWORD`, `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE`
+in the `release` environment, which only `v*` tags can use.
 
 ## License
 
