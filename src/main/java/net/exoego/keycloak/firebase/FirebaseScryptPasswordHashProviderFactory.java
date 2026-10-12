@@ -78,7 +78,7 @@ public class FirebaseScryptPasswordHashProviderFactory implements PasswordHashPr
         return -100;
     }
 
-    // Same rule as the built-in argon2 provider. It uses the non-FIPS BouncyCastle API too.
+    // Same rule as the built-in argon2 provider. scrypt is not a FIPS approved algorithm.
     @Override
     public boolean isSupported(Config.Scope config) {
         return !Profile.isFeatureEnabled(Profile.Feature.FIPS);
