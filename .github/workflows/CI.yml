@@ -11,6 +11,7 @@ concurrency:
 jobs:
   test:
     name: Test (Java ${{ matrix.java }})
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -52,6 +53,7 @@ jobs:
   # A skipped required job counts as passed, so fail instead of skipping.
   result:
     name: CI result
+    timeout-minutes: 5
     if: always()
     needs: test
     runs-on: ubuntu-latest
