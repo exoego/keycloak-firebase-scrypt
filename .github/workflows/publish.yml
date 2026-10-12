@@ -37,6 +37,9 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        # A cache entry written by CI must not end up in the published artifacts.
+        with:
+          cache-disabled: true
 
       - name: Run tests
         run: ./gradlew check
