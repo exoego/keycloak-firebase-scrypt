@@ -1,4 +1,5 @@
 # Verify-only Firebase scrypt provider for Keycloak
+[![Maven Central](https://img.shields.io/maven-central/v/net.exoego/keycloak-firebase-scrypt)](https://central.sonatype.com/artifact/net.exoego/keycloak-firebase-scrypt)
 [![codecov](https://codecov.io/gh/exoego/keycloak-firebase-scrypt/graph/badge.svg?token=a0EhBN7vkq)](https://codecov.io/gh/exoego/keycloak-firebase-scrypt)
 
 A Keycloak password hash provider for users moved from Firebase Authentication.
@@ -19,7 +20,7 @@ On the first successful login, Keycloak replaces the hash with one in the realm'
 
 ## Install
 
-Put the jar `net.exoego:keycloak-firebase-scrypt` from Maven Central in `/opt/keycloak/providers/` and run `kc.sh build`.
+Put the jar from [Maven Central](https://central.sonatype.com/artifact/net.exoego/keycloak-firebase-scrypt) in `/opt/keycloak/providers/` and run `kc.sh build`.
 The jar has no dependencies of its own. For example, in a container image:
 
 ```dockerfile
