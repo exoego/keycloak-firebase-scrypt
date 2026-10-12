@@ -13,9 +13,9 @@ import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFac
 import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory.ROUNDS;
 import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory.SALT_SEPARATOR;
 import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory.SIGNER_KEY;
-import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_HASH;
-import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_SALT;
-import static net.exoego.keycloak.firebase.FirebaseScryptTest.KEY_01;
+import static net.exoego.keycloak.firebase.FirebaseScryptVectors.HUNTER2_HASH;
+import static net.exoego.keycloak.firebase.FirebaseScryptVectors.HUNTER2_SALT;
+import static net.exoego.keycloak.firebase.FirebaseScryptVectors.KEY_01;
 import static net.exoego.keycloak.firebase.TestFixtures.imported;
 import static net.exoego.keycloak.firebase.TestFixtures.options;
 import static net.exoego.keycloak.firebase.TestFixtures.provider;

@@ -17,9 +17,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_HASH;
-import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_SALT;
-import static net.exoego.keycloak.firebase.FirebaseScryptTest.referenceVector;
+import static net.exoego.keycloak.firebase.FirebaseScryptVectors.BASE64URL_SALT;
+import static net.exoego.keycloak.firebase.FirebaseScryptVectors.HUNTER2_HASH;
+import static net.exoego.keycloak.firebase.FirebaseScryptVectors.HUNTER2_SALT;
+import static net.exoego.keycloak.firebase.FirebaseScryptVectors.reference;
 import static net.exoego.keycloak.firebase.TestFixtures.imported;
 import static net.exoego.keycloak.firebase.TestFixtures.options;
 import static net.exoego.keycloak.firebase.TestFixtures.provider;
@@ -30,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FirebaseScryptPasswordHashProviderTest {
 
-    private static final FirebaseScryptTest.Vector UTF8 = referenceVector("pässwörd");
+    private static final FirebaseScryptVectors.Vector UTF8 = reference("pässwörd");
 
     private final PasswordHashProvider provider = provider(options());
     private final PasswordCredentialModel hunter2 = imported(HUNTER2_HASH, HUNTER2_SALT);
@@ -66,7 +67,7 @@ class FirebaseScryptPasswordHashProviderTest {
 
     @ParameterizedTest(name = "{0}={1}")
     @CsvSource({
-            "signer-key," + FirebaseScryptTest.KEY_02,
+            "signer-key," + FirebaseScryptVectors.KEY_02,
             "salt-separator,AAECAwQFBgc=",
             "rounds,7",
             "mem-cost,13",
@@ -78,8 +79,7 @@ class FirebaseScryptPasswordHashProviderTest {
     // The algorithm allows an empty salt, and the Firebase export writes "" for a user without one.
     @Test
     void acceptsEmptySalt() {
-        FirebaseScryptTest.Vector v = FirebaseScryptTest.referenceVectors().stream()
-                .filter(r -> r.salt().isEmpty()).findFirst().orElseThrow();
+        FirebaseScryptVectors.Vector v = FirebaseScryptVectors.emptySalt();
         assertTrue(provider.verify(v.password(), imported(v.hash(), "")));
     }
 
@@ -92,9 +92,6 @@ class FirebaseScryptPasswordHashProviderTest {
     void rejectsHashOfAnotherSalt() {
         assertFalse(provider.verify("hunter2", imported(HUNTER2_HASH, UTF8.salt())));
     }
-
-    // Keycloak decodes the salt with the MIME decoder. It drops the "-" and "_" here, and gives other bytes without an error.
-    static final String BASE64URL_SALT = "-----_8AAQIDBA";
 
     static Stream<Arguments> malformedCredentials() {
         byte[] hash = Base64.getDecoder().decode(HUNTER2_HASH);

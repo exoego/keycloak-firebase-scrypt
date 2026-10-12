@@ -122,7 +122,7 @@ Give each user a password credential like this:
 `check` also runs the integration tests. They start Keycloak with Testcontainers, so they need Docker.
 They import users with the Firebase test vectors, log in, and check that the hash changes to argon2.
 
-The unit tests also use `src/test/resources/firebase-scrypt-vectors/reference.csv`, made with the
+The unit tests also use `src/testFixtures/resources/firebase-scrypt-vectors/reference.csv`, made with the
 [firebase/scrypt](https://github.com/firebase/scrypt) tool. It covers non-ASCII passwords, long passwords and other parameters.
 
 ## Release

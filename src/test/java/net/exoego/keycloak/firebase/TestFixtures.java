@@ -21,10 +21,10 @@ final class TestFixtures {
 
     static Map<String, String> options() {
         Map<String, String> options = new HashMap<>();
-        options.put(SIGNER_KEY, FirebaseScryptTest.KEY_01);
-        options.put(SALT_SEPARATOR, FirebaseScryptTest.SALT_SEPARATOR);
-        options.put(ROUNDS, String.valueOf(FirebaseScryptTest.ROUNDS));
-        options.put(MEM_COST, String.valueOf(FirebaseScryptTest.MEM_COST));
+        options.put(SIGNER_KEY, FirebaseScryptVectors.KEY_01);
+        options.put(SALT_SEPARATOR, FirebaseScryptVectors.SALT_SEPARATOR);
+        options.put(ROUNDS, String.valueOf(FirebaseScryptVectors.ROUNDS));
+        options.put(MEM_COST, String.valueOf(FirebaseScryptVectors.MEM_COST));
         return options;
     }
 
