@@ -2,6 +2,7 @@ plugins {
     `java-library`
     `maven-publish`
     signing
+    jacoco
     alias(libs.plugins.nexus.publish)
 }
 
@@ -72,6 +73,12 @@ tasks.withType<Test>().configureEach {
 
 tasks.check {
     dependsOn(testing.suites.named("integrationTest"))
+}
+
+tasks.jacocoTestReport {
+    reports {
+        xml.required.set(true)
+    }
 }
 
 nexusPublishing {

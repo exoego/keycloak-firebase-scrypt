@@ -38,4 +38,36 @@ jobs:
 
       # The integration tests start Keycloak with Testcontainers, using the Docker of the runner.
       - name: Run Tests
-        run: ./gradlew check -PtestJavaVersion=${{ matrix.java }}
+        run: ./gradlew check jacocoTestReport -PtestJavaVersion=${{ matrix.java }}
+
+      # Codecov merges the uploads of all matrix jobs for the same commit.
+      - name: Upload coverage
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: build/reports/jacoco/test/jacocoTestReport.xml
+          disable_search: true
+          name: java-${{ matrix.java }}
+          fail_ci_if_error: true
+
+  # Require only this job in branch rules, so a change to the matrix does not need a rule change.
+  # "always()" makes it fail, not skip, when a matrix job fails. A skipped required job counts as passed.
+  result:
+    name: CI result
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check matrix result
+        if: needs.test.result != 'success'
+        run: exit 1
+
+      # Checkout lets the Codecov CLI find the same commit as the uploads.
+      - uses: actions/checkout@v7
+
+      - name: Send Codecov notifications
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          run_command: send-notifications
+          fail_ci_if_error: true
