@@ -66,6 +66,9 @@ public class FirebaseScryptPasswordHashProvider implements PasswordHashProvider 
     // Keycloak decodes the salt with the MIME decoder, which drops unknown characters such as "-" and "_".
     // So read the raw value and decode it strictly, as for the hash.
     private static byte[] decodeSalt(String secretData) {
+        if (secretData == null) {
+            throw malformed("the credential has no secret data");
+        }
         JsonNode salt;
         try {
             salt = JsonSerialization.mapper.readTree(secretData).get("salt");

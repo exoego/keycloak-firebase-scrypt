@@ -14,6 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_HASH;
@@ -123,6 +124,17 @@ class FirebaseScryptPasswordHashProviderTest {
                 assertFalse(e.getMessage().contains(secret), e.getMessage());
             }
         }
+    }
+
+    // Keycloak parses the secret data before verify, so only a caller that changes it afterwards gets here.
+    @ParameterizedTest(name = "[{0}]")
+    @NullSource
+    @ValueSource(strings = {"not json", ""})
+    void failsLoudlyOnUnreadableSecretData(String secretData) {
+        PasswordCredentialModel credential = imported(HUNTER2_HASH, HUNTER2_SALT);
+        credential.setSecretData(secretData);
+        ModelException e = assertThrows(ModelException.class, () -> provider.verify("hunter2", credential));
+        assertTrue(e.getMessage().contains(FirebaseScryptPasswordHashProviderFactory.ID), e.getMessage());
     }
 
     @Test
