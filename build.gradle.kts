@@ -43,6 +43,11 @@ tasks.withType<Jar>().configureEach {
     }
 }
 
+// An empty value, as from a CI matrix row without it, means the version of the catalog.
+val testKeycloakVersion = providers.gradleProperty("testKeycloakVersion")
+    .filter { it.isNotBlank() }
+    .orElse(libs.versions.keycloak)
+
 testing {
     suites {
         named<JvmTestSuite>("test") {
@@ -60,7 +65,7 @@ testing {
             targets.all {
                 testTask.configure {
                     dependsOn(tasks.jar)
-                    systemProperty("keycloak.version", libs.versions.keycloak.get())
+                    systemProperty("keycloak.version", testKeycloakVersion.get())
                     systemProperty("provider.jar", tasks.jar.get().archiveFile.get().asFile.absolutePath)
                     shouldRunAfter(tasks.test)
                 }

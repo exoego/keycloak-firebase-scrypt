@@ -5,7 +5,8 @@ A Keycloak password hash provider for users moved from Firebase Authentication.
 
 Firebase hashes passwords with its own variant of scrypt. With this provider, Keycloak can verify those hashes,
 so users keep their Firebase passwords after the move.
-On the first successful login, Keycloak hashes the password again with the realm's algorithm (argon2 by default).
+On the first successful login, Keycloak hashes the password again with the realm's algorithm.
+The default is argon2 since Keycloak 25 and pbkdf2-sha512 before.
 
 Status: not released yet. The coordinates below are for the first release.
 
@@ -13,7 +14,7 @@ Status: not released yet. The coordinates below are for the first release.
 
 | keycloak-firebase-scrypt | Keycloak | Java |
 |---|---|---|
-| 0.1.x | 26.8 | 17, 21, 25 |
+| 0.1.x | 24.0.5, 25.0.6, 26.8 | 17, 21, 25 |
 
 - The provider is off in FIPS mode, like the built-in argon2 provider. scrypt is not a FIPS approved algorithm.
 - Keycloak marks the password hashing SPI as internal. It may change in any Keycloak release, and Keycloak logs a warning
@@ -75,6 +76,9 @@ KC_SPI_PASSWORD_HASHING__FIREBASE_SCRYPT__MEM_COST=14
 
 or as options, such as `--spi-password-hashing--firebase-scrypt--signer-key=...`.
 
+Keycloak 26.2 and earlier do not know the double separator. Use a single one there,
+such as `KC_SPI_PASSWORD_HASHING_FIREBASE_SCRYPT_SIGNER_KEY` or `--spi-password-hashing-firebase-scrypt-signer-key`.
+
 - The signer key is a secret of the Firebase project. Keep it in a secret store.
   Prefer the environment variable, because other users of the host can see command line options.
 - Keycloak does not start if an option is missing or invalid. Without them, no imported user could log in.
@@ -97,6 +101,7 @@ Give each user a password credential like this:
 - `<passwordHash>` and `<salt>` are the values of the user in the Firebase export.
   Keep `"salt":""` for a user without a salt. A missing `salt` field counts as a broken credential.
 - Use standard base64. Some Firebase APIs return base64url, with `-` and `_`. Convert those values first.
+  Keycloak 24 and 25 refuse a salt that is not standard base64 at import with a server error, and do not create the user.
 - The provider ignores `hashIterations` and uses the `rounds` option.
 - If a credential is broken, the login fails and Keycloak logs a warning with `ModelException: firebase-scrypt: <reason>`.
   For example, the hash or the salt is missing or is not standard base64, or the hash has another length than the signer key.
@@ -125,7 +130,8 @@ Give each user a password credential like this:
 ```
 
 `check` also runs the integration tests. They start Keycloak with Testcontainers, so they need Docker.
-They import users with the Firebase test vectors, log in, and check that the hash changes to argon2.
+They import users with the Firebase test vectors, log in, and check that the hash changes to the default algorithm.
+They use the Keycloak version of `gradle/libs.versions.toml`. Pass `-PtestKeycloakVersion=25.0.6` for another one.
 
 The unit tests also use `src/testFixtures/resources/firebase-scrypt-vectors/reference.csv`, made with the
 [firebase/scrypt](https://github.com/firebase/scrypt) tool. It covers non-ASCII passwords, long passwords and other parameters.
