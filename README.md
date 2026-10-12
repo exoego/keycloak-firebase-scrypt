@@ -1,4 +1,4 @@
-# keycloak-firebase-scrypt
+# Verify-only Firebase scrypt provider for Keycloak
 [![codecov](https://codecov.io/gh/exoego/keycloak-firebase-scrypt/graph/badge.svg?token=a0EhBN7vkq)](https://codecov.io/gh/exoego/keycloak-firebase-scrypt)
 
 A Keycloak password hash provider for users moved from Firebase Authentication.
