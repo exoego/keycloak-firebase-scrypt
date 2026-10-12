@@ -14,7 +14,7 @@ Status: not released yet. The coordinates below are for the first release.
 
 | keycloak-firebase-scrypt | Keycloak | Java |
 |---|---|---|
-| 0.1.x | 24.0.5, 25.0.6, 26.8 | 17, 21, 25 |
+| 1.0.x | 24.0.5, 25.0.6, 26.8 | 17, 21, 25 |
 
 - The provider is off in FIPS mode, like the built-in argon2 provider. scrypt is not a FIPS approved algorithm.
 - Keycloak marks the password hashing SPI as internal. It may change in any Keycloak release, and Keycloak logs a warning
@@ -30,14 +30,14 @@ Maven:
 <dependency>
   <groupId>net.exoego</groupId>
   <artifactId>keycloak-firebase-scrypt</artifactId>
-  <version>0.1.0</version>
+  <version>1.0.0</version>
 </dependency>
 ```
 
 Gradle:
 
 ```kotlin
-implementation("net.exoego:keycloak-firebase-scrypt:0.1.0")
+implementation("net.exoego:keycloak-firebase-scrypt:1.0.0")
 ```
 
 The jar has no dependencies of its own. Put it in `/opt/keycloak/providers/` and run `kc.sh build`.
@@ -45,7 +45,7 @@ For example, in a container image:
 
 ```dockerfile
 FROM quay.io/keycloak/keycloak:26.8.0 AS builder
-ADD --chown=keycloak:keycloak https://repo1.maven.org/maven2/net/exoego/keycloak-firebase-scrypt/0.1.0/keycloak-firebase-scrypt-0.1.0.jar /opt/keycloak/providers/
+ADD --chown=keycloak:keycloak https://repo1.maven.org/maven2/net/exoego/keycloak-firebase-scrypt/1.0.0/keycloak-firebase-scrypt-1.0.0.jar /opt/keycloak/providers/
 RUN /opt/keycloak/bin/kc.sh build
 
 FROM quay.io/keycloak/keycloak:26.8.0
@@ -139,7 +139,7 @@ The scrypt core is checked against the test vectors of RFC 7914 and against Boun
 
 ## Release
 
-Publish a GitHub release with a tag like `v0.1.0`. The `publish.yml` workflow then publishes to Maven Central.
+Publish a GitHub release with a tag like `v1.0.0`. The `publish.yml` workflow then publishes to Maven Central.
 It needs the secrets `SONATYPE_USERNAME`, `SONATYPE_PASSWORD`, `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE`.
 
 ## License
