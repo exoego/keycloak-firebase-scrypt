@@ -16,7 +16,7 @@ The default is argon2 since Keycloak 25 and pbkdf2-sha512 before.
 
 - The provider is off in FIPS mode, like the built-in argon2 provider. scrypt is not a FIPS approved algorithm.
 - Keycloak marks the password hashing SPI as internal. It may change in any Keycloak release, and Keycloak logs a warning
-  when it loads this provider. The integration tests run the provider in a real Keycloak to catch such changes.
+  when it builds with this provider. The integration tests run the provider in a real Keycloak to catch such changes.
 
 ## Install
 
@@ -99,7 +99,9 @@ INFO  [net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory] (
 ```
 
 Check that `rounds`, `mem-cost` and the length of the signer key match your Firebase project.
-Keycloak also logs the warning `KC-SERVICES0047` for this provider, because the password hashing SPI is internal.
+`kc.sh build` logs the warning `KC-SERVICES0047` for this provider, because the password hashing SPI is internal.
+With the Dockerfile above, the warning is in the output of `docker build`, not in the startup log.
+A start that runs the build first, such as `start-dev`, logs it too.
 
 ## Import users
 
