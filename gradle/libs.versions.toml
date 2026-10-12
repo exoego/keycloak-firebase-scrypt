@@ -3,13 +3,14 @@ keycloak = "26.8.0"
 junit = "6.1.3"
 
 [libraries]
+keycloak-parent = { module = "org.keycloak:keycloak-parent", version.ref = "keycloak" }
 # Keycloak loads these from its own lib directory, so the provider jar must not bundle them.
 keycloak-core = { module = "org.keycloak:keycloak-core", version.ref = "keycloak" }
 keycloak-common = { module = "org.keycloak:keycloak-common", version.ref = "keycloak" }
 keycloak-server-spi = { module = "org.keycloak:keycloak-server-spi", version.ref = "keycloak" }
 keycloak-server-spi-private = { module = "org.keycloak:keycloak-server-spi-private", version.ref = "keycloak" }
-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version = "1.86" }
-jboss-logging = { module = "org.jboss.logging:jboss-logging", version = "3.6.3.Final" }
+bcprov = { module = "org.bouncycastle:bcprov-jdk18on" }
+jboss-logging = { module = "org.jboss.logging:jboss-logging" }
 
 # Not used directly. useJUnitJupiter takes only the version, and Renovate needs a library to find it.
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
