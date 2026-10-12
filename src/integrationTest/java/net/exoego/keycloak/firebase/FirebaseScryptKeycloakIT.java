@@ -19,6 +19,8 @@ import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
@@ -113,22 +115,27 @@ class FirebaseScryptKeycloakIT {
     }
 
     // Fail closed with a clear warning, not a server error or a silent "wrong password".
-    @Test
-    void malformedCredentialDeniesLoginWithWarning() throws Exception {
-        String base64UrlHash = HUNTER2_HASH.replace('+', '-').replace('/', '_');
-        try (Response response = admin.realm(REALM).users().create(firebaseUser("broken-user", base64UrlHash))) {
+    // Keycloak itself decodes the base64url salt to other bytes without an error.
+    @ParameterizedTest(name = "{0}")
+    @CsvSource({
+            "base64url-hash, 70k8Vg5B3_OrvJOiqusnasv0dLcBHoDAqJrJr7TRLBfMw4MitWx51YXJYFdGiyMbMeKtWtLf5HiBDcN0SUOm4A==, 42xEC+ixf3L2lw==",
+            "base64url-salt, 70k8Vg5B3/OrvJOiqusnasv0dLcBHoDAqJrJr7TRLBfMw4MitWx51YXJYFdGiyMbMeKtWtLf5HiBDcN0SUOm4A==, -----_8AAQIDBA",
+    })
+    void malformedCredentialDeniesLoginWithWarning(String username, String hash, String salt) throws Exception {
+        try (Response response = admin.realm(REALM).users().create(firebaseUser(username, hash, salt))) {
             assertEquals(201, response.getStatus());
         }
-        String userId = admin.realm(REALM).users().searchByUsername("broken-user", true).get(0).getId();
+        String userId = admin.realm(REALM).users().searchByUsername(username, true).get(0).getId();
         int logStart = keycloak.getLogs().length();
 
-        assertInvalidCredentials(passwordGrant(REALM, "broken-user", "hunter2"));
+        assertInvalidCredentials(passwordGrant(REALM, username, "hunter2"));
 
         assertEquals("firebase-scrypt", algorithm(passwordCredential(REALM, userId)));
         String logs = keycloak.getLogs().substring(logStart);
         assertTrue(logs.contains("Error when validating user password"), logs);
         assertTrue(logs.contains("org.keycloak.models.ModelException: firebase-scrypt"), logs);
-        assertFalse(logs.contains(base64UrlHash), logs);
+        assertFalse(logs.contains(hash), logs);
+        assertFalse(logs.contains(salt), logs);
     }
 
     private void assertMigratesOnFirstLogin(String realm, String username, String password) throws Exception {
@@ -154,11 +161,15 @@ class FirebaseScryptKeycloakIT {
 
     // The same credentialData and secretData strings work with the Admin API, partialImport and a realm import file.
     private static UserRepresentation firebaseUser(String username, String passwordHash) {
+        return firebaseUser(username, passwordHash, SALT);
+    }
+
+    private static UserRepresentation firebaseUser(String username, String passwordHash, String salt) {
         CredentialRepresentation credential = new CredentialRepresentation();
         credential.setType(CredentialRepresentation.PASSWORD);
         credential.setUserLabel("firebase-import");
         credential.setCredentialData("{\"hashIterations\":8,\"algorithm\":\"firebase-scrypt\",\"algorithmData\":{}}");
-        credential.setSecretData("{\"value\":\"" + passwordHash + "\",\"salt\":\"" + SALT + "\",\"algorithmData\":{}}");
+        credential.setSecretData("{\"value\":\"" + passwordHash + "\",\"salt\":\"" + salt + "\",\"algorithmData\":{}}");
 
         UserRepresentation user = new UserRepresentation();
         user.setUsername(username);

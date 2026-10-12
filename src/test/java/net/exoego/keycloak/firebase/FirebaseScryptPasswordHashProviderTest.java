@@ -75,9 +75,17 @@ class FirebaseScryptPasswordHashProviderTest {
     }
 
     @Test
+    void acceptsSaltWithoutPadding() {
+        assertTrue(provider.verify("hunter2", imported(HUNTER2_HASH, HUNTER2_SALT.replace("=", ""))));
+    }
+
+    @Test
     void rejectsHashOfAnotherSalt() {
         assertFalse(provider.verify("hunter2", imported(HUNTER2_HASH, UTF8.salt())));
     }
+
+    // Keycloak decodes the salt with the MIME decoder. It drops the "-" and "_" here, and gives other bytes without an error.
+    static final String BASE64URL_SALT = "-----_8AAQIDBA";
 
     static Stream<Arguments> malformedCredentials() {
         byte[] hash = Base64.getDecoder().decode(HUNTER2_HASH);
@@ -89,6 +97,9 @@ class FirebaseScryptPasswordHashProviderTest {
                 Arguments.of("extended hash", encoder.encodeToString(Arrays.copyOf(hash, hash.length + 1)), HUNTER2_SALT),
                 Arguments.of("empty hash", "", HUNTER2_SALT),
                 Arguments.of("no hash", null, HUNTER2_SALT),
+                Arguments.of("base64url salt", HUNTER2_HASH, BASE64URL_SALT),
+                Arguments.of("salt not base64", HUNTER2_HASH, HUNTER2_SALT + "!"),
+                Arguments.of("salt with space", HUNTER2_HASH, HUNTER2_SALT.substring(0, 4) + " " + HUNTER2_SALT.substring(4)),
                 Arguments.of("empty salt", HUNTER2_HASH, ""),
                 Arguments.of("no salt", HUNTER2_HASH, null));
     }
