@@ -26,7 +26,9 @@ repositories {
 }
 
 dependencies {
+    compileOnly(platform(libs.keycloak.parent))
     compileOnly(libs.bundles.keycloak.provided)
+    testImplementation(platform(libs.keycloak.parent))
     testImplementation(libs.bundles.keycloak.provided)
 }
 

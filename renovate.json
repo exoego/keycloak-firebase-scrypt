@@ -20,15 +20,7 @@
       "enabled": false
     },
     {
-      "description": "Must match the libs in the Keycloak image",
-      "matchPackageNames": [
-        "org.bouncycastle:bcprov-jdk18on",
-        "org.jboss.logging:jboss-logging"
-      ],
-      "enabled": false
-    },
-    {
-      "description": "Check the README and the libs above by hand",
+      "description": "Check the README by hand",
       "matchPackageNames": [
         "org.keycloak:**"
       ],
