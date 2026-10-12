@@ -1,4 +1,7 @@
 name: CI
+
+permissions: {}
+
 on:
   push:
     branches: [ main ]
@@ -12,6 +15,8 @@ jobs:
   test:
     name: Test (Java ${{ matrix.java }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -55,6 +60,8 @@ jobs:
     if: always()
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Check matrix result
         if: needs.test.result != 'success'

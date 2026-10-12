@@ -1,5 +1,7 @@
 name: Publish to Maven Central
 
+permissions: {}
+
 on:
   release:
     types: [published]
@@ -12,6 +14,8 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
