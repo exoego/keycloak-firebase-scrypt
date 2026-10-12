@@ -23,6 +23,9 @@ import org.jboss.logging.Logger;
  */
 public class FirebaseScryptPasswordHashProviderFactory implements PasswordHashProviderFactory, EnvironmentDependentProviderFactory {
 
+    /**
+     * The provider ID. Imported credentials use it as their {@code algorithm}, and the options use it in their names.
+     */
     public static final String ID = "firebase-scrypt";
 
     static final String SIGNER_KEY = "signer-key";
@@ -36,6 +39,12 @@ public class FirebaseScryptPasswordHashProviderFactory implements PasswordHashPr
     private byte[] saltSeparator;
     private int rounds;
     private int memCost;
+
+    /**
+     * Keycloak creates the factory through {@link java.util.ServiceLoader}.
+     */
+    public FirebaseScryptPasswordHashProviderFactory() {
+    }
 
     @Override
     public PasswordHashProvider create(KeycloakSession session) {

@@ -108,6 +108,15 @@ tasks.check {
     dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
+// The javadoc jar goes to Maven Central, so a warning fails the build. check runs it, so a release does not find it first.
+tasks.javadoc {
+    (options as StandardJavadocDocletOptions).addBooleanOption("Werror", true)
+}
+
+tasks.check {
+    dependsOn(tasks.javadoc)
+}
+
 nexusPublishing {
     repositories {
         sonatype {
