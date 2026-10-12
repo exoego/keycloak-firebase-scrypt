@@ -1,0 +1,162 @@
+package net.exoego.keycloak.firebase;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
+
+import org.keycloak.Config;
+import org.keycloak.credential.hash.PasswordHashProvider;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory.MEM_COST;
+import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory.ROUNDS;
+import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory.SALT_SEPARATOR;
+import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderFactory.SIGNER_KEY;
+import static net.exoego.keycloak.firebase.FirebaseScryptPasswordHashProviderTest.imported;
+import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_HASH;
+import static net.exoego.keycloak.firebase.FirebaseScryptTest.HUNTER2_SALT;
+import static net.exoego.keycloak.firebase.FirebaseScryptTest.KEY_01;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class FirebaseScryptPasswordHashProviderFactoryTest {
+
+    static Map<String, String> options() {
+        Map<String, String> options = new HashMap<>();
+        options.put(SIGNER_KEY, KEY_01);
+        options.put(SALT_SEPARATOR, FirebaseScryptTest.SALT_SEPARATOR);
+        options.put(ROUNDS, "8");
+        options.put(MEM_COST, "14");
+        return options;
+    }
+
+    static Map<String, String> options(String option, String value) {
+        Map<String, String> options = options();
+        if (value == null) {
+            options.remove(option);
+        } else {
+            options.put(option, value);
+        }
+        return options;
+    }
+
+    static PasswordHashProvider provider(Map<String, String> options) {
+        FirebaseScryptPasswordHashProviderFactory factory = new FirebaseScryptPasswordHashProviderFactory();
+        factory.init(new MapScope(options));
+        return factory.create(null);
+    }
+
+    // Firebase Admin SDK accepts rounds 1 to 8 and mem_cost 1 to 14 for its scrypt.
+    @ParameterizedTest(name = "{0}={1}")
+    @CsvSource({"rounds,1", "rounds,8", "mem-cost,1", "mem-cost,14"})
+    void acceptsCostWithinFirebaseLimits(String option, String value) {
+        assertDoesNotThrow(() -> provider(options(option, value)));
+    }
+
+    // Values often come from files or secret stores with a trailing newline.
+    @Test
+    void trimsSurroundingWhitespace() {
+        Map<String, String> options = new HashMap<>();
+        options.put(SIGNER_KEY, " " + KEY_01 + "\n");
+        options.put(SALT_SEPARATOR, "\t" + FirebaseScryptTest.SALT_SEPARATOR + " ");
+        options.put(ROUNDS, " 8\n");
+        options.put(MEM_COST, "14 ");
+
+        assertTrue(provider(options).verify("hunter2", imported(HUNTER2_HASH, HUNTER2_SALT)));
+    }
+
+    static Stream<Arguments> missingOptions() {
+        return Stream.of(SIGNER_KEY, SALT_SEPARATOR, ROUNDS, MEM_COST)
+                .flatMap(option -> Stream.of(
+                        Arguments.of(option, null),
+                        Arguments.of(option, ""),
+                        Arguments.of(option, " \n")));
+    }
+
+    @ParameterizedTest(name = "{0}=[{1}]")
+    @MethodSource("missingOptions")
+    void requiresEveryOption(String option, String value) {
+        assertFailsNaming(option, options(option, value));
+    }
+
+    @ParameterizedTest(name = "{0}=[{1}]")
+    @CsvSource(delimiter = '|', value = {
+            "signer-key|not base64!",
+            "signer-key|" + "jxspr8Ki0RYycVU8zykbdLGjFQ3McFUH0uiiTvC8pVMXAn210wjLNmdZJzxUECKbm0QsEmYUSDzZvpjeJ9WmXA=-",
+            "signer-key|jxspr8Ki0RYycVU8zykbdLGjFQ3McFUH 0uiiTvC8pVMXAn210wjLNmdZJzxUECKbm0QsEmYUSDzZvpjeJ9WmXA==",
+            "salt-separator|-w==",
+            "salt-separator|B w==",
+    })
+    void rejectsValueThatIsNotStandardBase64(String option, String value) {
+        assertFailsNaming(option, options(option, value));
+    }
+
+    @ParameterizedTest(name = "{0}=[{1}]")
+    @CsvSource({
+            "rounds,eight", "rounds,8.0", "rounds,0x8", "rounds,2147483648",
+            "mem-cost,fourteen", "mem-cost,14.0", "mem-cost,0xe", "mem-cost,2147483648",
+    })
+    void rejectsCostThatIsNotAnInteger(String option, String value) {
+        assertFailsNaming(option, options(option, value));
+    }
+
+    // A larger mem_cost can make every login allocate gigabytes. Firebase never uses one.
+    @ParameterizedTest(name = "{0}={1}")
+    @CsvSource({"rounds,0", "rounds,-1", "rounds,9", "mem-cost,0", "mem-cost,-1", "mem-cost,15", "mem-cost,30"})
+    void rejectsCostOutsideFirebaseLimits(String option, String value) {
+        assertFailsNaming(option, options(option, value));
+    }
+
+    @Test
+    void errorDoesNotLeakSignerKey() {
+        String almostKey = "-" + KEY_01.substring(1);
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> provider(options(SIGNER_KEY, almostKey)));
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            assertFalse(String.valueOf(t.getMessage()).contains(almostKey), t.toString());
+            assertFalse(String.valueOf(t.getMessage()).contains(KEY_01.substring(0, 16)), t.toString());
+        }
+    }
+
+    // Keycloak must not start with a broken configuration. Otherwise every imported user fails to log in.
+    private static void assertFailsNaming(String option, Map<String, String> options) {
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> provider(options));
+        assertTrue(e.getMessage().contains(option), e.getMessage());
+    }
+
+    static class MapScope extends Config.AbstractScope {
+        private final Map<String, String> values;
+
+        MapScope(Map<String, String> values) {
+            this.values = values;
+        }
+
+        @Override
+        public String get(String key) {
+            return values.get(key);
+        }
+
+        @Override
+        public Config.Scope scope(String... scope) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        @Deprecated
+        public Set<String> getPropertyNames() {
+            return values.keySet();
+        }
+
+        @Override
+        public Config.Scope root() {
+            return this;
+        }
+    }
+}

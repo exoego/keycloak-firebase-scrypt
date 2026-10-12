@@ -45,17 +45,40 @@ public class FirebaseScryptPasswordHashProvider implements PasswordHashProvider 
         throw verifyOnly();
     }
 
+    // Keycloak logs an exception from here as a warning and denies the login, so a broken import is visible.
     @Override
     public boolean verify(String rawPassword, PasswordCredentialModel credential) {
-        PasswordSecretData secret = credential.getPasswordSecretData();
-        if (rawPassword == null || secret == null || secret.getSalt() == null || secret.getValue() == null) {
+        // HMAC pads short keys with zero bytes, so "pw" and "pw\0" give the same hash.
+        // Accepting "pw\0" would also rehash it as the new password and lock out the real one.
+        if (rawPassword == null || rawPassword.indexOf('\0') >= 0) {
             return false;
         }
-        // Strict decoder on purpose. A base64url value from the Firebase REST API must be converted before import.
-        byte[] expected = Base64.getDecoder().decode(secret.getValue());
-        byte[] actual = FirebaseScrypt.hash(rawPassword.getBytes(StandardCharsets.UTF_8), secret.getSalt(), saltSeparator,
+        PasswordSecretData secret = credential.getPasswordSecretData();
+        byte[] salt = secret == null ? null : secret.getSalt();
+        if (salt == null || salt.length == 0) {
+            throw malformed("the credential has no salt");
+        }
+        byte[] expected = decodeHash(secret.getValue());
+        byte[] actual = FirebaseScrypt.hash(rawPassword.getBytes(StandardCharsets.UTF_8), salt, saltSeparator,
                 signerKey, rounds, memCost);
         return MessageDigest.isEqual(actual, expected);
+    }
+
+    private byte[] decodeHash(String value) {
+        if (value == null || value.isEmpty()) {
+            throw malformed("the credential has no hash");
+        }
+        byte[] hash;
+        try {
+            hash = Base64.getDecoder().decode(value);
+        } catch (IllegalArgumentException e) {
+            throw malformed("the hash is not standard base64. Convert base64url values before import");
+        }
+        // The Firebase hash is the signer key encrypted with AES-CTR, so both have the same length.
+        if (hash.length != signerKey.length) {
+            throw malformed("the hash has " + hash.length + " bytes, but the signer key has " + signerKey.length);
+        }
+        return hash;
     }
 
     @Override
@@ -65,6 +88,10 @@ public class FirebaseScryptPasswordHashProvider implements PasswordHashProvider 
 
     @Override
     public void close() {
+    }
+
+    private static ModelException malformed(String reason) {
+        return new ModelException(FirebaseScryptPasswordHashProviderFactory.ID + ": " + reason);
     }
 
     private static ModelException verifyOnly() {

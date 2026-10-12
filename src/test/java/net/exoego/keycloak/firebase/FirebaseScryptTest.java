@@ -9,7 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -18,8 +17,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Test vectors from https://github.com/firebase/scrypt (tests/ and README.md).
- * All of them use salt separator Bw==, rounds 8 and mem_cost 14.
+ * Official test vectors from https://github.com/firebase/scrypt (tests/ and README.md), plus reference.csv.
+ * The official ones use salt separator Bw==, rounds 8 and mem_cost 14, and ASCII passwords only.
  */
 class FirebaseScryptTest {
 
@@ -33,34 +32,54 @@ class FirebaseScryptTest {
     static final String HUNTER2_SALT = "42xEC+ixf3L2lw==";
     static final String HUNTER2_HASH = "70k8Vg5B3/OrvJOiqusnasv0dLcBHoDAqJrJr7TRLBfMw4MitWx51YXJYFdGiyMbMeKtWtLf5HiBDcN0SUOm4A==";
 
-    record Vector(String source, String signerKey, String password, String hash, String salt) {
+    record Vector(String source, String signerKey, String password, String hash, String salt,
+                  String saltSeparator, int rounds, int memCost) {
         @Override
         public String toString() {
-            return source + " [" + password + "]";
+            return source + " [" + password + "] r=" + rounds + " mem_cost=" + memCost + " sep=" + saltSeparator;
         }
     }
 
     static List<Vector> vectors() {
         List<Vector> vectors = new ArrayList<>();
-        vectors.add(new Vector("01-known-value.sh", KEY_01, "hunter2", HUNTER2_HASH, HUNTER2_SALT));
+        vectors.add(new Vector("01-known-value.sh", KEY_01, "hunter2", HUNTER2_HASH, HUNTER2_SALT, SALT_SEPARATOR, ROUNDS, MEM_COST));
         vectors.add(new Vector("README.md", KEY_01, "user1password",
-                "lSrfV15cpx95/sZS2W9c9Kp6i/LVgQNDNC/qzrCnh1SAyZvqmZqAjTdn3aoItz+VHjoZilo78198JAdRuid5lQ==", HUNTER2_SALT));
-        vectors.addAll(load("02-more-values-passwords.good", KEY_02));
-        vectors.addAll(load("03-more-values-different-key-passwords.good", KEY_03));
+                "lSrfV15cpx95/sZS2W9c9Kp6i/LVgQNDNC/qzrCnh1SAyZvqmZqAjTdn3aoItz+VHjoZilo78198JAdRuid5lQ==", HUNTER2_SALT,
+                SALT_SEPARATOR, ROUNDS, MEM_COST));
+        for (String[] line : read("02-more-values-passwords.good")) {
+            vectors.add(new Vector("02-more-values-passwords.good", KEY_02, line[0], line[1], line[2], SALT_SEPARATOR, ROUNDS, MEM_COST));
+        }
+        for (String[] line : read("03-more-values-different-key-passwords.good")) {
+            vectors.add(new Vector("03-more-values-different-key-passwords.good", KEY_03, line[0], line[1], line[2], SALT_SEPARATOR, ROUNDS, MEM_COST));
+        }
+        vectors.addAll(referenceVectors());
         return vectors;
     }
 
+    static List<Vector> referenceVectors() {
+        List<Vector> vectors = new ArrayList<>();
+        for (String[] line : read("reference.csv")) {
+            vectors.add(new Vector("reference.csv", KEY_01, line[0], line[1], line[2], line[3],
+                    Integer.parseInt(line[4]), Integer.parseInt(line[5])));
+        }
+        return vectors;
+    }
+
+    static Vector referenceVector(String password) {
+        return referenceVectors().stream().filter(v -> v.password().equals(password)).findFirst().orElseThrow();
+    }
+
     @Test
-    void loadsAllOfficialVectors() {
-        assertEquals(2 + 13 + 13, vectors().size());
+    void loadsAllVectors() {
+        assertEquals(2 + 13 + 13 + 8, vectors().size());
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("vectors")
-    void matchesOfficialVector(Vector v) {
+    void matchesVector(Vector v) {
         byte[] hash = FirebaseScrypt.hash(
                 v.password().getBytes(StandardCharsets.UTF_8),
-                b64(v.salt()), b64(SALT_SEPARATOR), b64(v.signerKey()), ROUNDS, MEM_COST);
+                b64(v.salt()), b64(v.saltSeparator()), b64(v.signerKey()), v.rounds(), v.memCost());
 
         assertEquals(v.hash(), Base64.getEncoder().encodeToString(hash));
     }
@@ -69,23 +88,19 @@ class FirebaseScryptTest {
         return Base64.getDecoder().decode(s);
     }
 
-    // Each line is "password,hash,salt", as read by bulk_password_test in tests/shared_test_functions.sh.
-    private static List<Vector> load(String file, String signerKey) {
-        List<Vector> vectors = new ArrayList<>();
+    private static List<String[]> read(String file) {
+        List<String[]> lines = new ArrayList<>();
         try (InputStream in = FirebaseScryptTest.class.getResourceAsStream("/firebase-scrypt-vectors/" + file);
              BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                if (line.isEmpty()) {
-                    continue;
+                if (!line.isEmpty() && !line.startsWith("#")) {
+                    lines.add(line.split(",", -1));
                 }
-                String[] parts = line.split(",", -1);
-                assertEquals(3, parts.length, line);
-                vectors.add(new Vector(file, signerKey, parts[0], parts[1], parts[2]));
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return vectors;
+        return lines;
     }
 }

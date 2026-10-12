@@ -77,6 +77,7 @@ or as options, such as `--spi-password-hashing--firebase-scrypt--signer-key=...`
 - The signer key is a secret of the Firebase project. Keep it in a secret store.
   Prefer the environment variable, because other users of the host can see command line options.
 - Keycloak does not start if an option is missing or invalid. Without them, no imported user could log in.
+  `rounds` must be 1 to 8 and `mem-cost` 1 to 14, the same limits as the Firebase Admin SDK.
 - One Keycloak takes the parameters of one Firebase project.
 
 ## Import users
@@ -96,6 +97,8 @@ Give each user a password credential like this:
 - Use standard base64 with padding. Some Firebase APIs return base64url, with `-` and `_`. Convert those values first.
   Keycloak decodes the salt leniently and drops unknown characters, so a base64url salt fails without a clear error.
 - The provider ignores `hashIterations` and uses the `rounds` option.
+- If a credential is broken, the login fails and Keycloak logs a warning with `ModelException: firebase-scrypt: <reason>`.
+  For example, the hash is missing, is not standard base64, or has another length than the signer key.
 - The same credential works in `POST /admin/realms/{realm}/users`, in `POST /admin/realms/{realm}/partialImport`,
   and in a realm import file.
 
@@ -107,6 +110,8 @@ Give each user a password credential like this:
 - After a successful login, Keycloak sees that the stored algorithm differs from the realm's algorithm and replaces the hash.
   The credential keeps its ID and label.
 - Users who never log in keep the Firebase hash. Keep the provider until you have reset their passwords or removed them.
+- A password that contains a NUL character never matches. Otherwise `pw` followed by NUL would match `pw`,
+  because HMAC pads short keys with zero bytes.
 
 ## Build and test
 
@@ -116,6 +121,9 @@ Give each user a password credential like this:
 
 `check` also runs the integration tests. They start Keycloak with Testcontainers, so they need Docker.
 They import users with the Firebase test vectors, log in, and check that the hash changes to argon2.
+
+The unit tests also use `src/test/resources/firebase-scrypt-vectors/reference.csv`, made with the
+[firebase/scrypt](https://github.com/firebase/scrypt) tool. It covers non-ASCII passwords, long passwords and other parameters.
 
 ## Release
 

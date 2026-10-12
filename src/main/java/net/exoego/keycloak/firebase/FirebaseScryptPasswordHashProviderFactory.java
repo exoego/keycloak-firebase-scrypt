@@ -49,11 +49,12 @@ public class FirebaseScryptPasswordHashProviderFactory implements PasswordHashPr
         saltSeparator = requiredBase64(config, SALT_SEPARATOR);
         rounds = requiredInt(config, ROUNDS);
         memCost = requiredInt(config, MEM_COST);
-        if (rounds < 1) {
-            throw new IllegalStateException(ID + ": rounds must be 1 or more");
+        // Same limits as the Firebase Admin SDK. A larger mem-cost could make each login allocate gigabytes.
+        if (rounds < 1 || rounds > 8) {
+            throw new IllegalStateException(ID + ": rounds must be between 1 and 8");
         }
-        if (memCost < 1 || memCost > 30) {
-            throw new IllegalStateException(ID + ": mem-cost must be between 1 and 30");
+        if (memCost < 1 || memCost > 14) {
+            throw new IllegalStateException(ID + ": mem-cost must be between 1 and 14");
         }
         logger.infof("%s enabled: rounds=%d, mem-cost=%d, signer key %d bytes", ID, rounds, memCost, signerKey.length);
     }
