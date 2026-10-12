@@ -3,6 +3,7 @@ plugins {
     `maven-publish`
     signing
     jacoco
+    `java-test-fixtures`
     alias(libs.plugins.nexus.publish)
 }
 
@@ -51,6 +52,7 @@ testing {
         register<JvmTestSuite>("integrationTest") {
             useJUnitJupiter(libs.versions.junit)
             dependencies {
+                implementation(testFixtures(project()))
                 implementation(libs.testcontainers.keycloak)
                 runtimeOnly(libs.slf4j.simple)
             }
@@ -92,6 +94,12 @@ nexusPublishing {
             password.set(System.getenv("SONATYPE_PASSWORD"))
         }
     }
+}
+
+// Test fixtures are for this build only.
+(components["java"] as AdhocComponentWithVariants).apply {
+    withVariantsFromConfiguration(configurations["testFixturesApiElements"]) { skip() }
+    withVariantsFromConfiguration(configurations["testFixturesRuntimeElements"]) { skip() }
 }
 
 publishing {
