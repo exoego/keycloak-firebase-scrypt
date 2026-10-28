@@ -23,4 +23,4 @@ jobs:
           persist-credentials: false
 
       # The release of jactionlint is immutable, so pinning the action also pins the binary it downloads.
-      - uses: jdx/jactionlint@1027f0a131ab98bc7e191d995bfa15dbed5bbf8f # v2.2.0
+      - uses: jdx/jactionlint@a65ab044e916760429068fe5794b8306abdfcbb9 # v2.3.0
